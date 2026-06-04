@@ -68,6 +68,46 @@ memo/
 | [Тех. спецификация](docs/memo-tech-spec.md) | Стек, модели, оптимизация |
 | [Компоненты](docs/memo-components.md) | Логика модулей, API, схемы хранилищ |
 
+## Разработка
+
+### Первый запуск
+
+```powershell
+# Backend — создать venv и установить зависимости
+cd src\backend
+python -m venv .venv
+.venv\Scripts\pip install -e ".[dev]"
+
+# Frontend — установить npm-пакеты
+cd ..\frontend
+npm install
+```
+
+### Запуск в dev-режиме
+
+```powershell
+# из src/frontend/
+npm run tauri dev
+```
+
+Tauri автоматически запускает Vite (порт 1420) и Python-backend. Порт backend выбирается динамически.
+
+### Тесты
+
+```powershell
+cd src\backend
+.venv\Scripts\python -m pytest tests\unit -v
+```
+
+### Переменные окружения backend
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `MEMO_OLLAMA_URL` | `http://localhost:11434` | URL Ollama |
+| `MEMO_DATA_DIR` | `./data` | Папка БД и ChromaDB |
+| `MEMO_EMBED_MODEL` | `bge-m3` | Модель эмбеддингов |
+| `MEMO_NAME_MODEL` | `qwen3:1.7b` | Модель для авто-названий |
+
 ## Статус
 
-> 🚧 В разработке
+> 🚧 В разработке — реализованы Этапы 0 и 1 (индексация документов)

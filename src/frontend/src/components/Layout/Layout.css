@@ -1,0 +1,36 @@
+.layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: #1e1e1e;
+}
+
+.layout-left {
+  flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #252526;
+  min-width: 200px;
+  max-width: 600px;
+}
+
+.layout-divider {
+  width: 3px;
+  flex-shrink: 0;
+  background: #3c3c3c;
+  cursor: col-resize;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.layout-divider:hover,
+.layout-divider.dragging {
+  background: #0078d4;
+}
+
+.layout-right {
+  flex: 1;
+  overflow: auto;
+  background: #1e1e1e;
+  min-width: 300px;
+}

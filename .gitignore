@@ -32,6 +32,7 @@ src/frontend/build/
 # Tauri
 src/frontend/src-tauri/target/
 src/frontend/src-tauri/WixTools/
+src/frontend/src-tauri/gen/
 
 # IDE
 .vscode/

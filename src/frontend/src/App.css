@@ -1,0 +1,29 @@
+.panel-placeholder {
+  padding: 16px;
+  color: #8c8c8c;
+}
+
+.panel-placeholder h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #bbbbbb;
+  margin-bottom: 12px;
+}
+
+.health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #2d2d2d;
+  margin-top: 8px;
+}
+
+.health-badge.ok { color: #4ec94e; }
+.health-badge.warn { color: #ff8c42; }
+.health-badge.err { color: #f44747; }
+.health-badge.pending { color: #8c8c8c; }
