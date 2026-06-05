@@ -44,6 +44,7 @@ interface AppStore {
   setMessages: (msgs: MessageItem[]) => void;
   appendMessage: (msg: MessageItem) => void;
   updateLastAssistantMessage: (content: string) => void;
+  updateLastAssistantThinking: (thinking: string) => void;
 
   selectedModel: string;
   setSelectedModel: (model: string) => void;
@@ -51,8 +52,8 @@ interface AppStore {
   availableModels: string[];
   setAvailableModels: (models: string[]) => void;
 
-  isStreaming: boolean;
-  setIsStreaming: (v: boolean) => void;
+  streamingChatId: number | null;
+  setStreamingChatId: (id: number | null) => void;
 
   thinkingEnabled: boolean;
   setThinkingEnabled: (v: boolean) => void;
@@ -123,6 +124,15 @@ export const useAppStore = create<AppStore>((set) => ({
       }
       return { messages: msgs };
     }),
+  updateLastAssistantThinking: (thinking) =>
+    set((state) => {
+      const msgs = [...state.messages];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant") {
+        msgs[msgs.length - 1] = { ...last, thinking };
+      }
+      return { messages: msgs };
+    }),
 
   selectedModel: _savedModel,
   setSelectedModel: (model) => {
@@ -135,8 +145,8 @@ export const useAppStore = create<AppStore>((set) => ({
   availableModels: [],
   setAvailableModels: (models) => set({ availableModels: models }),
 
-  isStreaming: false,
-  setIsStreaming: (v) => set({ isStreaming: v }),
+  streamingChatId: null,
+  setStreamingChatId: (id) => set({ streamingChatId: id }),
 
   thinkingEnabled: _savedThinking,
   setThinkingEnabled: (v) => {

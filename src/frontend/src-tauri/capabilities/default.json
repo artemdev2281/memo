@@ -2,5 +2,5 @@
   "identifier": "default",
   "description": "Default capabilities for memo",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:allow-open"]
 }

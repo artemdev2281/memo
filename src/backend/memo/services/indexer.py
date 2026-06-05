@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import AsyncGenerator
 
 from memo.chroma import get_collection
@@ -15,6 +15,8 @@ CHUNK_OVERLAP = 100
 def _chunks(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
     if not text.strip():
         return []
+    # Guard against a non-advancing window (infinite loop) on bad config.
+    overlap = max(0, min(overlap, size - 1))
     result = []
     start = 0
     while start < len(text):
@@ -51,7 +53,7 @@ def _db_upsert(path: str, hash_: str, status: str, error: str | None) -> None:
             row.file_hash = hash_
             row.status = status
             row.error_msg = error
-            row.indexed_at = datetime.utcnow()
+            row.indexed_at = datetime.now(timezone.utc)
         else:
             db.add(
                 IndexState(
@@ -59,7 +61,7 @@ def _db_upsert(path: str, hash_: str, status: str, error: str | None) -> None:
                     file_hash=hash_,
                     status=status,
                     error_msg=error,
-                    indexed_at=datetime.utcnow(),
+                    indexed_at=datetime.now(timezone.utc),
                 )
             )
         db.commit()

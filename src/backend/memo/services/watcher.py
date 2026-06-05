@@ -43,14 +43,14 @@ def _mark_stale(path: str) -> None:
 
 
 def _mark_stale_or_create(path: str) -> None:
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     with SessionLocal() as db:
         row = db.query(IndexState).filter(IndexState.file_path == path).first()
         if row:
             row.status = "stale"
         else:
-            db.add(IndexState(file_path=path, file_hash="", status="stale", indexed_at=datetime.utcnow()))
+            db.add(IndexState(file_path=path, file_hash="", status="stale", indexed_at=datetime.now(timezone.utc)))
         db.commit()
 
 

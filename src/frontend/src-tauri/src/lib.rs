@@ -31,6 +31,7 @@ fn find_backend_dir() -> Option<std::path::PathBuf> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(BackendState {
             port: Mutex::new(None),
             process: Mutex::new(None),

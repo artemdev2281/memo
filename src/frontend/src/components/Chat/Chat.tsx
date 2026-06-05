@@ -1,26 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { listMessages, listModels, streamMessage } from "../../api/chat";
 import { useAppStore } from "../../store/useAppStore";
 import "./Chat.css";
-
-function parseThink(raw: string): { thinking: string; answer: string; isThinking: boolean } {
-  const open = raw.indexOf("<think>");
-  if (open === -1) return { thinking: "", answer: raw, isThinking: false };
-  const close = raw.indexOf("</think>", open);
-  if (close === -1) {
-    return {
-      thinking: raw.slice(open + 7),
-      answer: raw.slice(0, open),
-      isThinking: true,
-    };
-  }
-  return {
-    thinking: raw.slice(open + 7, close),
-    answer: (raw.slice(0, open) + raw.slice(close + 8)).trimStart(),
-    isThinking: false,
-  };
-}
 
 function ContextBadge() {
   const { workDir, selectedPaths } = useAppStore();
@@ -48,12 +31,13 @@ export function Chat() {
     setMessages,
     appendMessage,
     updateLastAssistantMessage,
+    updateLastAssistantThinking,
     selectedModel,
     setSelectedModel,
     availableModels,
     setAvailableModels,
-    isStreaming,
-    setIsStreaming,
+    streamingChatId,
+    setStreamingChatId,
     selectedPaths,
     workDir,
     chats,
@@ -65,13 +49,16 @@ export function Chat() {
 
   const [input, setInput] = useState("");
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [isThinking, setIsThinking] = useState(false);
-  const [thinkMap, setThinkMap] = useState<Record<number, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // True while THIS chat (the one on screen) is streaming.
+  const activeStreaming = streamingChatId !== null && streamingChatId === activeChatId;
+
   useEffect(() => {
+    let cancelled = false;
     listModels()
       .then((models) => {
+        if (cancelled) return;
         setAvailableModels(models);
         if (!selectedModel && models.length > 0) {
           const preferred = models.find((m) => m.startsWith("qwen3")) ?? models[0];
@@ -79,6 +66,7 @@ export function Chat() {
         }
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -104,7 +92,7 @@ export function Chat() {
 
   async function handleSend() {
     const text = input.trim();
-    if (!text || isStreaming) return;
+    if (!text || activeStreaming) return;
     if (!selectedModel) {
       setStreamError("Выберите модель из списка выше.");
       return;
@@ -125,8 +113,7 @@ export function Chat() {
 
     setInput("");
     setStreamError(null);
-    setIsStreaming(true);
-    setIsThinking(false);
+    setStreamingChatId(chatId);
 
     const userMsg = {
       id: Date.now(),
@@ -144,11 +131,13 @@ export function Chat() {
       role: "assistant" as const,
       content: "",
       sources: [],
+      thinking: "",
       created_at: new Date().toISOString(),
     };
     appendMessage(assistantMsg);
 
     let fullContent = "";
+    let fullThinking = "";
     let finalSources: string[] = [];
 
     try {
@@ -156,38 +145,30 @@ export function Chat() {
         if (useAppStore.getState().activeChatId !== chatId) break;
         if (event.type === "token") {
           fullContent += event.content;
-          const { thinking, answer, isThinking: inThink } = parseThink(fullContent);
-          setIsThinking(inThink);
-          if (thinkingEnabled && thinking) {
-            setThinkMap((prev) => ({ ...prev, [assistantMsg.id]: thinking }));
-          }
-          updateLastAssistantMessage(thinkingEnabled ? answer : answer);
+          updateLastAssistantMessage(fullContent);
+        } else if (event.type === "thinking") {
+          fullThinking += event.content;
+          updateLastAssistantThinking(fullThinking);
         } else if (event.type === "done") {
-          setIsThinking(false);
           finalSources = event.sources;
-          const { thinking, answer } = parseThink(fullContent);
-          if (thinkingEnabled && thinking) {
-            setThinkMap((prev) => ({ ...prev, [assistantMsg.id]: thinking }));
-          }
-          updateLastAssistantMessage(answer);
           setMessages(
             useAppStore.getState().messages.map((m) =>
               m.id === assistantMsg.id
-                ? { ...m, content: answer, sources: finalSources }
+                ? { ...m, content: fullContent, thinking: fullThinking || null, sources: finalSources }
                 : m,
             ),
           );
         } else if (event.type === "error") {
-          setIsThinking(false);
           setStreamError(event.msg);
           updateLastAssistantMessage(fullContent || "(ошибка)");
         }
       }
     } catch (e) {
-      setIsThinking(false);
       setStreamError((e as Error).message);
     } finally {
-      setIsStreaming(false);
+      if (useAppStore.getState().streamingChatId === chatId) {
+        setStreamingChatId(null);
+      }
     }
   }
 
@@ -215,6 +196,8 @@ export function Chat() {
       </div>
     );
   }
+
+  const lastMsg = messages[messages.length - 1];
 
   return (
     <div className="chat-panel">
@@ -244,48 +227,55 @@ export function Chat() {
       </div>
 
       <div className="chat-messages">
-        {messages.length === 0 && !isStreaming && (
+        {messages.length === 0 && !activeStreaming && (
           <div className="chat-empty">Задайте вопрос по выбранным документам</div>
         )}
-        {messages.map((msg) => (
-          <div key={msg.id} className={`chat-message ${msg.role}`}>
-            {msg.role === "assistant" && thinkingEnabled && (
-              <>
-                {isStreaming && isThinking && msg === messages[messages.length - 1] && (
-                  <div className="chat-thinking-status">
-                    <span className="chat-thinking-dots">Думаю</span>
-                  </div>
-                )}
-                {thinkMap[msg.id] && (
-                  <details className="chat-think-block">
-                    <summary>Рассуждения</summary>
-                    <div className="chat-think-content">{thinkMap[msg.id]}</div>
-                  </details>
-                )}
-              </>
-            )}
-            <div className="chat-message-content">
-              {msg.role === "assistant" ? (
-                msg.content ? (
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+        {messages.map((msg) => {
+          const isLast = msg === lastMsg;
+          const showThinkingStatus =
+            msg.role === "assistant" &&
+            isLast &&
+            activeStreaming &&
+            !!msg.thinking &&
+            !msg.content;
+          return (
+            <div key={msg.id} className={`chat-message ${msg.role}`}>
+              {msg.role === "assistant" && showThinkingStatus && (
+                <div className="chat-thinking-status">
+                  <span className="chat-thinking-dots">Думаю</span>
+                </div>
+              )}
+              {msg.role === "assistant" && msg.thinking && (
+                <details className="chat-think-block">
+                  <summary>Рассуждения</summary>
+                  <div className="chat-think-content">{msg.thinking}</div>
+                </details>
+              )}
+              <div className="chat-message-content">
+                {msg.role === "assistant" ? (
+                  msg.content ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    !showThinkingStatus && <span style={{ color: "#555" }}>…</span>
+                  )
                 ) : (
-                  !isThinking && <span style={{ color: "#555" }}>…</span>
-                )
-              ) : (
-                <p>{msg.content}</p>
+                  <p>{msg.content}</p>
+                )}
+              </div>
+              {msg.role === "assistant" && msg.sources.length > 0 && (
+                <div className="chat-sources">
+                  {msg.sources.map((s) => (
+                    <span key={s} className="chat-source-chip">
+                      {s}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
-            {msg.role === "assistant" && msg.sources.length > 0 && (
-              <div className="chat-sources">
-                {msg.sources.map((s) => (
-                  <span key={s} className="chat-source-chip">
-                    {s}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {streamError && <div className="chat-error-msg">⚠ {streamError}</div>}
         <div ref={messagesEndRef} />
       </div>
@@ -295,7 +285,7 @@ export function Chat() {
           className="chat-input"
           placeholder="Задайте вопрос…"
           value={input}
-          disabled={isStreaming}
+          disabled={activeStreaming}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -308,7 +298,7 @@ export function Chat() {
         <button
           className="chat-send-btn"
           onClick={handleSend}
-          disabled={isStreaming || !input.trim()}
+          disabled={activeStreaming || !input.trim()}
           title="Отправить (Enter)"
         >
           ➤

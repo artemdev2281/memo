@@ -17,18 +17,20 @@ from memo.api.models import router as models_router
 async def lifespan(app: FastAPI):
     from memo.db.session import init_db
     from memo.services import watcher
+    from memo.services.ollama_client import close_client
 
     init_db()
     watcher.start()
     yield
     watcher.stop()
+    await close_client()
 
 
 app = FastAPI(title="memo", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:1420", "http://127.0.0.1:1420", "tauri://localhost"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -40,16 +42,22 @@ app.include_router(models_router)
 app.include_router(chats_router)
 
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
-        return s.getsockname()[1]
-
-
 def main() -> None:
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else _free_port()
+    # Bind + listen ourselves, THEN print the port: the kernel queues incoming
+    # connections from listen() onward, so the frontend never sees a refused
+    # connection even if it connects before uvicorn's accept loop is running.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+    sock.bind(("127.0.0.1", port))
+    port = sock.getsockname()[1]
+    sock.listen()
+
     print(f"MEMO_PORT={port}", flush=True)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+
+    config = uvicorn.Config(app, log_level="warning")
+    server = uvicorn.Server(config)
+    server.run(sockets=[sock])
 
 
 if __name__ == "__main__":

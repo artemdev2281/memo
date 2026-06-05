@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase
@@ -16,7 +16,7 @@ class IndexState(Base):
     file_hash = Column(String(64), nullable=False, default="")
     status = Column(String(16), nullable=False, default="indexed")
     error_msg = Column(Text, nullable=True)
-    indexed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    indexed_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class Chat(Base):
@@ -28,8 +28,8 @@ class Chat(Base):
     context_type = Column(String(16), nullable=False, default="none")
     context_paths = Column(Text, nullable=True)
     include_subfolders = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class Message(Base):
@@ -40,4 +40,5 @@ class Message(Base):
     role = Column(String(16), nullable=False)
     content = Column(Text, nullable=False)
     sources = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    thinking = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

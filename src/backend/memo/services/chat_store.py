@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
 
 from memo.db.models import Chat, Message
 from memo.db.session import SessionLocal
@@ -43,7 +47,7 @@ def update_chat(chat_id: int, **kwargs) -> dict | None:
             if key == "context_paths" and isinstance(val, list):
                 val = json.dumps(val)
             setattr(chat, key, val)
-        chat.updated_at = datetime.utcnow()
+        chat.updated_at = _now()
         db.commit()
         db.refresh(chat)
         return _chat_to_dict(chat)
@@ -66,16 +70,23 @@ def list_messages(chat_id: int) -> list[dict]:
         return [_msg_to_dict(m) for m in msgs]
 
 
-def add_message(chat_id: int, role: str, content: str, sources: list[str] | None = None) -> dict:
+def add_message(
+    chat_id: int,
+    role: str,
+    content: str,
+    sources: list[str] | None = None,
+    thinking: str | None = None,
+) -> dict:
     with SessionLocal() as db:
         msg = Message(
             chat_id=chat_id,
             role=role,
             content=content,
             sources=json.dumps(sources or []),
+            thinking=thinking,
         )
         db.add(msg)
-        db.query(Chat).filter(Chat.id == chat_id).update({"updated_at": datetime.utcnow()})
+        db.query(Chat).filter(Chat.id == chat_id).update({"updated_at": _now()})
         db.commit()
         db.refresh(msg)
         return _msg_to_dict(msg)
@@ -86,7 +97,7 @@ def set_chat_title_from_question(chat_id: int, question: str) -> None:
     if len(question) > 60:
         title += "…"
     with SessionLocal() as db:
-        db.query(Chat).filter(Chat.id == chat_id).update({"title": title, "updated_at": datetime.utcnow()})
+        db.query(Chat).filter(Chat.id == chat_id).update({"title": title, "updated_at": _now()})
         db.commit()
 
 
@@ -110,5 +121,6 @@ def _msg_to_dict(msg: Message) -> dict:
         "role": msg.role,
         "content": msg.content,
         "sources": json.loads(msg.sources) if msg.sources else [],
+        "thinking": msg.thinking,
         "created_at": msg.created_at.isoformat() if msg.created_at else None,
     }

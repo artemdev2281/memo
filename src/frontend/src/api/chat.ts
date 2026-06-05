@@ -18,11 +18,13 @@ export interface MessageItem {
   role: "user" | "assistant";
   content: string;
   sources: string[];
+  thinking?: string | null;
   created_at: string;
 }
 
 export type ChatEvent =
   | { type: "token"; content: string }
+  | { type: "thinking"; content: string }
   | { type: "done"; sources: string[]; stale_warning: boolean }
   | { type: "error"; msg: string };
 
@@ -81,21 +83,26 @@ export async function* streamMessage(
   const decoder = new TextDecoder();
   let buf = "";
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        try {
-          yield JSON.parse(line.slice(6)) as ChatEvent;
-        } catch {
-          // ignore malformed SSE
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            yield JSON.parse(line.slice(6)) as ChatEvent;
+          } catch {
+            // ignore malformed SSE
+          }
         }
       }
     }
+  } finally {
+    // Release the stream if the consumer breaks early (e.g. chat switch).
+    await reader.cancel().catch(() => {});
   }
 }
 

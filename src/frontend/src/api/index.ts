@@ -25,25 +25,31 @@ export async function* streamIndex(
   });
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
 
-  const reader = res.body!.getReader();
+  const body = res.body;
+  if (!body) throw new Error("No response body");
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        try {
-          yield JSON.parse(line.slice(6)) as IndexEvent;
-        } catch {
-          // ignore malformed SSE lines
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            yield JSON.parse(line.slice(6)) as IndexEvent;
+          } catch {
+            // ignore malformed SSE lines
+          }
         }
       }
     }
+  } finally {
+    await reader.cancel().catch(() => {});
   }
 }
 

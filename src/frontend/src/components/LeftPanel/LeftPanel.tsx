@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { getTree } from "../../api/fs";
 import { refreshStale, streamIndex } from "../../api/index";
 import { useAppStore } from "../../store/useAppStore";
@@ -35,6 +36,14 @@ export function LeftPanel() {
     setSelectionMode((v) => !v);
   }
 
+  async function handleBrowse() {
+    const selected = await open({ directory: true, multiple: false });
+    if (typeof selected === "string" && selected) {
+      setPathInput(selected);
+      await loadTree(selected);
+    }
+  }
+
   async function loadTree(dir: string) {
     setLoadError(null);
     try {
@@ -51,7 +60,9 @@ export function LeftPanel() {
     setIsIndexing(true);
     clearIndexErrors();
     setErrorsExpanded(false);
-    setIndexProgress({ done: 0, total: selectedPaths.size });
+    // Don't seed `total` from the selection — the server expands directories,
+    // so the real file count (from the first progress event) is larger.
+    setIndexProgress({ done: 0, total: 0 });
     try {
       for await (const event of streamIndex([...selectedPaths])) {
         if (event.type === "progress") {
@@ -106,6 +117,13 @@ export function LeftPanel() {
             if (e.key === "Enter") loadTree(pathInput.trim());
           }}
         />
+        <button
+          className="lp-btn lp-btn-browse"
+          onClick={handleBrowse}
+          title="Выбрать папку"
+        >
+          📂
+        </button>
         <button
           className="lp-btn lp-btn-open"
           onClick={() => loadTree(pathInput.trim())}

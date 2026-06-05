@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from memo.db.models import IndexState
 from memo.db.session import SessionLocal
 from memo.services.indexer import index_files
-from memo.services.ollama_client import OllamaClient
+from memo.services.ollama_client import OllamaClient, get_client
 from memo.settings import settings
 
 router = APIRouter(prefix="/index", tags=["index"])
@@ -18,7 +18,7 @@ class IndexRequest(BaseModel):
 
 
 def _make_ollama() -> OllamaClient:
-    return OllamaClient(settings.ollama_url)
+    return get_client()
 
 
 @router.post("")

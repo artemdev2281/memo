@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from memo.services import chat_store
 from memo.services.indexer import index_files
-from memo.services.ollama_client import OllamaClient
+from memo.services.ollama_client import OllamaClient, get_client
 from memo.services.rag import answer_stream
 from memo.settings import settings
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/chats", tags=["chats"])
 
 
 def _make_ollama() -> OllamaClient:
-    return OllamaClient(settings.ollama_url)
+    return get_client()
 
 
 class CreateChatRequest(BaseModel):
@@ -92,9 +92,12 @@ async def send_message(chat_id: int, body: SendMessageRequest) -> StreamingRespo
     if not model:
         raise HTTPException(status_code=400, detail="No model selected")
 
+    # Prior turns BEFORE the current user message — conversational memory.
+    history = chat_store.list_messages(chat_id)
+
     chat_store.add_message(chat_id, "user", body.content)
 
-    is_first_message = len(chat_store.list_messages(chat_id)) <= 1
+    is_first_message = len(history) == 0
     if is_first_message or chat["title"] == "Новый чат":
         chat_store.set_chat_title_from_question(chat_id, body.content)
 
@@ -118,8 +121,8 @@ async def send_message(chat_id: int, body: SendMessageRequest) -> StreamingRespo
 
     async def stream():
         ollama = _make_ollama()
-        full_content = []
-        sources: list[str] = []
+        full_content: list[str] = []
+        full_thinking: list[str] = []
 
         async for event in answer_stream(
             question=body.content,
@@ -127,15 +130,22 @@ async def send_message(chat_id: int, body: SendMessageRequest) -> StreamingRespo
             model=model,
             ollama=ollama,
             embed_model=settings.embed_model,
+            history=history,
             think=body.thinking,
         ):
             if event["type"] == "token":
                 full_content.append(event["content"])
                 yield f"data: {json.dumps(event)}\n\n"
+            elif event["type"] == "thinking":
+                full_thinking.append(event["content"])
+                yield f"data: {json.dumps(event)}\n\n"
             elif event["type"] == "done":
                 sources = event.get("sources", [])
                 stale_warning = event.get("stale_warning", False)
-                chat_store.add_message(chat_id, "assistant", "".join(full_content), sources)
+                thinking = "".join(full_thinking) or None
+                chat_store.add_message(
+                    chat_id, "assistant", "".join(full_content), sources, thinking=thinking
+                )
                 yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'stale_warning': stale_warning})}\n\n"
             elif event["type"] == "error":
                 yield f"data: {json.dumps(event)}\n\n"
