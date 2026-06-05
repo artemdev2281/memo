@@ -108,16 +108,33 @@ async def index_files(
             continue
 
         collection = get_collection()
+        delete_failed = False
         try:
             existing_ids = collection.get(where={"file_path": path})["ids"]
             if existing_ids:
                 collection.delete(ids=existing_ids)
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Chroma delete failed for %s: %s", path, e)
+            delete_failed = True
+
+        if delete_failed:
+            _db_upsert(path, doc.file_hash, "error", "Chroma delete failed; skipping re-index")
+            yield {"type": "error", "file": path, "msg": "Chroma delete failed; skipping re-index"}
+            continue
 
         ids = [f"{path}::chunk::{j}" for j in range(len(chunks))]
-        metadatas = [{"file_path": path, "chunk_index": j} for j in range(len(chunks))]
-        collection.add(ids=ids, embeddings=embeddings, documents=chunks, metadatas=metadatas)
+        file_name = os.path.basename(path)
+        metadatas = [
+            {"file_path": path, "file_name": file_name, "file_hash": doc.file_hash, "chunk_index": j}
+            for j in range(len(chunks))
+        ]
+        try:
+            collection.add(ids=ids, embeddings=embeddings, documents=chunks, metadatas=metadatas)
+        except Exception as e:
+            _db_upsert(path, doc.file_hash, "error", f"Chroma add failed: {e}")
+            yield {"type": "error", "file": path, "msg": f"Chroma add failed: {e}"}
+            continue
 
         _db_upsert(path, doc.file_hash, "indexed", None)
 

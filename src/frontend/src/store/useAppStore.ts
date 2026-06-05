@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { ChatItem, MessageItem } from "../api/chat";
 
 export type IndexStatus = "indexed" | "stale" | "error" | null;
 
@@ -28,7 +29,42 @@ interface AppStore {
   indexErrors: Record<string, string>;
   addIndexError: (path: string, msg: string) => void;
   clearIndexErrors: () => void;
+
+  // Chat state
+  chats: ChatItem[];
+  setChats: (chats: ChatItem[]) => void;
+  addChat: (chat: ChatItem) => void;
+  updateChatInList: (chat: ChatItem) => void;
+  removeChatFromList: (id: number) => void;
+
+  activeChatId: number | null;
+  setActiveChatId: (id: number | null) => void;
+
+  messages: MessageItem[];
+  setMessages: (msgs: MessageItem[]) => void;
+  appendMessage: (msg: MessageItem) => void;
+  updateLastAssistantMessage: (content: string) => void;
+
+  selectedModel: string;
+  setSelectedModel: (model: string) => void;
+
+  availableModels: string[];
+  setAvailableModels: (models: string[]) => void;
+
+  isStreaming: boolean;
+  setIsStreaming: (v: boolean) => void;
+
+  thinkingEnabled: boolean;
+  setThinkingEnabled: (v: boolean) => void;
 }
+
+const _savedModel = typeof localStorage !== "undefined"
+  ? localStorage.getItem("memo_selected_model") ?? ""
+  : "";
+
+const _savedThinking = typeof localStorage !== "undefined"
+  ? localStorage.getItem("memo_thinking_enabled") !== "false"
+  : true;
 
 export const useAppStore = create<AppStore>((set) => ({
   workDir: "",
@@ -38,7 +74,7 @@ export const useAppStore = create<AppStore>((set) => ({
   setTree: (tree) => set({ tree }),
 
   selectedPaths: new Set(),
-  toggleSelect: (path, filePaths) =>
+  toggleSelect: (_path, filePaths) =>
     set((state) => {
       const s = new Set(state.selectedPaths);
       const allSelected = filePaths.every((p) => s.has(p));
@@ -59,6 +95,56 @@ export const useAppStore = create<AppStore>((set) => ({
   addIndexError: (path, msg) =>
     set((state) => ({ indexErrors: { ...state.indexErrors, [path]: msg } })),
   clearIndexErrors: () => set({ indexErrors: {} }),
+
+  // Chat state
+  chats: [],
+  setChats: (chats) => set({ chats }),
+  addChat: (chat) => set((state) => ({ chats: [chat, ...state.chats] })),
+  updateChatInList: (chat) =>
+    set((state) => ({
+      chats: state.chats.map((c) => (c.id === chat.id ? chat : c)),
+    })),
+  removeChatFromList: (id) =>
+    set((state) => ({ chats: state.chats.filter((c) => c.id !== id) })),
+
+  activeChatId: null,
+  setActiveChatId: (id) => set({ activeChatId: id }),
+
+  messages: [],
+  setMessages: (msgs) => set({ messages: msgs }),
+  appendMessage: (msg) =>
+    set((state) => ({ messages: [...state.messages, msg] })),
+  updateLastAssistantMessage: (content) =>
+    set((state) => {
+      const msgs = [...state.messages];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant") {
+        msgs[msgs.length - 1] = { ...last, content };
+      }
+      return { messages: msgs };
+    }),
+
+  selectedModel: _savedModel,
+  setSelectedModel: (model) => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("memo_selected_model", model);
+    }
+    set({ selectedModel: model });
+  },
+
+  availableModels: [],
+  setAvailableModels: (models) => set({ availableModels: models }),
+
+  isStreaming: false,
+  setIsStreaming: (v) => set({ isStreaming: v }),
+
+  thinkingEnabled: _savedThinking,
+  setThinkingEnabled: (v) => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("memo_thinking_enabled", String(v));
+    }
+    set({ thinkingEnabled: v });
+  },
 }));
 
 export function collectFilePaths(node: FileNode): string[] {

@@ -77,3 +77,20 @@ def test_mark_stale_or_create_new(in_memory_db):
         row = db.query(IndexState).filter_by(file_path="/new/file.txt").first()
         assert row is not None
         assert row.status == "stale"
+
+
+def test_on_created_marks_stale(in_memory_db, tmp_path):
+    from memo.services.watcher import _Handler
+    import os
+    import types
+
+    handler = _Handler()
+    target = str(tmp_path / "created.txt")
+    event = types.SimpleNamespace(is_directory=False, src_path=target)
+    handler.on_created(event)
+
+    expected_path = os.path.abspath(target)
+    with in_memory_db() as db:
+        row = db.query(IndexState).filter_by(file_path=expected_path).first()
+        assert row is not None
+        assert row.status == "stale"

@@ -13,6 +13,10 @@ _lock = threading.Lock()
 
 
 class _Handler(FileSystemEventHandler):
+    def on_created(self, event):
+        if not event.is_directory:
+            _mark_stale_or_create(os.path.abspath(event.src_path))
+
     def on_modified(self, event):
         if not event.is_directory:
             _mark_stale(os.path.abspath(event.src_path))

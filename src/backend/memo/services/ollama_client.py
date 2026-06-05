@@ -36,12 +36,15 @@ class OllamaClient:
                 results.extend(r.json()["embeddings"])
         return results
 
-    async def generate_stream(self, model: str, prompt: str):
+    async def generate_stream(self, model: str, prompt: str, num_ctx: int = 4096, think: bool | None = None):
+        payload: dict = {"model": model, "prompt": prompt, "stream": True, "options": {"num_ctx": num_ctx}}
+        if think is not None:
+            payload["think"] = think
         async with httpx.AsyncClient(timeout=300.0, trust_env=False) as client:
             async with client.stream(
                 "POST",
                 f"{self.base_url}/api/generate",
-                json={"model": model, "prompt": prompt, "stream": True},
+                json=payload,
             ) as r:
                 r.raise_for_status()
                 async for line in r.aiter_lines():

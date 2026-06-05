@@ -6,9 +6,11 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from memo.api.chats import router as chats_router
 from memo.api.fs import router as fs_router
 from memo.api.health import router as health_router
 from memo.api.index import router as index_router
+from memo.api.models import router as models_router
 
 
 @asynccontextmanager
@@ -34,6 +36,8 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(fs_router)
 app.include_router(index_router)
+app.include_router(models_router)
+app.include_router(chats_router)
 
 
 def _free_port() -> int:

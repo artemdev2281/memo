@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase
 
 
@@ -24,6 +24,10 @@ class Chat(Base):
 
     id = Column(Integer, primary_key=True)
     title = Column(String(256), nullable=False, default="New Chat")
+    model = Column(String(128), nullable=False, default="")
+    context_type = Column(String(16), nullable=False, default="none")
+    context_paths = Column(Text, nullable=True)
+    include_subfolders = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

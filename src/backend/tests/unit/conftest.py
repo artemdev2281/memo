@@ -19,6 +19,7 @@ def in_memory_db(monkeypatch):
     monkeypatch.setattr("memo.services.indexer.SessionLocal", TestSession)
     monkeypatch.setattr("memo.services.watcher.SessionLocal", TestSession)
     monkeypatch.setattr("memo.services.fs.SessionLocal", TestSession)
+    monkeypatch.setattr("memo.services.chat_store.SessionLocal", TestSession)
 
     return TestSession
 
@@ -37,5 +38,6 @@ def mock_chroma(monkeypatch):
 
     monkeypatch.setattr("memo.chroma.get_collection", lambda: col)
     monkeypatch.setattr("memo.services.indexer.get_collection", lambda: col)
+    monkeypatch.setattr("memo.services.rag.get_collection", lambda: col)
 
     return col

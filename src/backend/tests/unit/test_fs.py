@@ -57,3 +57,30 @@ def test_get_tree_depth_limit(tmp_path, in_memory_db):
     result = get_tree(str(tmp_path), depth=1)
     sub_node = next(c for c in result["children"] if c["name"] == "sub")
     assert sub_node["children"] == []
+
+
+def test_get_tree_no_false_status_from_neighbor(tmp_path, in_memory_db):
+    # /tmp/doc should not pick up statuses from /tmp/documents/
+    doc_dir = tmp_path / "doc"
+    doc_dir.mkdir()
+    sibling = tmp_path / "documents"
+    sibling.mkdir()
+    (doc_dir / "a.txt").write_text("a")
+    sibling_file = sibling / "b.txt"
+    sibling_file.write_text("b")
+
+    with in_memory_db() as db:
+        db.add(
+            IndexState(
+                file_path=str(sibling_file),
+                file_hash="abc",
+                status="indexed",
+                indexed_at=datetime.utcnow(),
+            )
+        )
+        db.commit()
+
+    result = get_tree(str(doc_dir))
+    file_node = next((c for c in result["children"] if c["name"] == "a.txt"), None)
+    assert file_node is not None
+    assert file_node["status"] is None

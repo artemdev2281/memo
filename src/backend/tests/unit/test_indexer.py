@@ -99,3 +99,30 @@ async def test_index_skips_same_hash(tmp_path, in_memory_db, mock_chroma):
 
     assert len(skips) == 1
     assert mock_chroma.add.call_count == embed_calls_after_first
+
+
+@pytest.mark.asyncio
+async def test_index_metadata_includes_file_name_and_hash(tmp_path, in_memory_db, mock_chroma):
+    f = tmp_path / "myfile.txt"
+    f.write_text("Content " * 50, encoding="utf-8")
+    async for _ in index_files([str(f)], _FakeOllama(), "bge-m3"):
+        pass
+    assert mock_chroma.add.called
+    call_kwargs = mock_chroma.add.call_args[1]
+    meta = call_kwargs["metadatas"][0]
+    assert meta["file_name"] == "myfile.txt"
+    assert "file_hash" in meta
+    assert meta["file_path"] == str(f)
+
+
+@pytest.mark.asyncio
+async def test_index_chroma_add_error_yields_error_event(tmp_path, in_memory_db, mock_chroma):
+    mock_chroma.add.side_effect = ValueError("dimension mismatch")
+    f = tmp_path / "doc.txt"
+    f.write_text("Some text " * 50, encoding="utf-8")
+    events = []
+    async for e in index_files([str(f)], _FakeOllama(), "bge-m3"):
+        events.append(e)
+    errors = [e for e in events if e["type"] == "error"]
+    assert len(errors) == 1
+    assert "Chroma add failed" in errors[0]["msg"]

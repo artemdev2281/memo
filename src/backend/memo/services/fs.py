@@ -6,9 +6,14 @@ from memo.db.session import SessionLocal
 
 def get_tree(path: str, depth: int = 5) -> dict:
     abs_path = os.path.abspath(path)
+    prefix = abs_path.rstrip("/\\") + os.sep
     with SessionLocal() as db:
         rows = db.query(IndexState).all()
-        statuses = {r.file_path: r.status for r in rows if r.file_path.startswith(abs_path)}
+        statuses = {
+            r.file_path: r.status
+            for r in rows
+            if r.file_path == abs_path or r.file_path.startswith(prefix)
+        }
     return _build_node(abs_path, depth, statuses)
 
 
