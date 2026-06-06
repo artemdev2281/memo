@@ -101,28 +101,42 @@ async def send_message(chat_id: int, body: SendMessageRequest) -> StreamingRespo
     if is_first_message or chat["title"] == "Новый чат":
         chat_store.set_chat_title_from_question(chat_id, body.content)
 
-    if context_paths:
-        ollama = _make_ollama()
-        async def _auto_index():
-            from memo.db.models import IndexState
-            from memo.db.session import SessionLocal
-            from memo.services.indexer import _expand_paths
-            expanded = _expand_paths(context_paths)
-            needs_index = []
-            with SessionLocal() as db:
-                for fp in expanded:
-                    row = db.query(IndexState).filter(IndexState.file_path == fp).first()
-                    if not row or row.status in ("stale", "error"):
-                        needs_index.append(fp)
-            if needs_index:
-                async for _ in index_files(needs_index, ollama, settings.embed_model):
-                    pass
-        await _auto_index()
+    def _files_needing_index() -> list[str]:
+        import os
+
+        from memo.db.models import IndexState
+        from memo.db.session import SessionLocal
+        from memo.services.document_loader import SUPPORTED
+        from memo.services.indexer import _expand_paths, mark_changed_stale
+        expanded = _expand_paths(context_paths)
+        # Detect edits the watcher may have missed (dropped event, offline
+        # change) so the answer is never built on outdated content.
+        mark_changed_stale(expanded)
+        needs_index = []
+        with SessionLocal() as db:
+            for fp in expanded:
+                row = db.query(IndexState).filter(IndexState.file_path == fp).first()
+                if not row or row.status == "stale":
+                    needs_index.append(fp)
+                elif row.status == "error" and os.path.splitext(fp)[1].lower() in SUPPORTED:
+                    # Retry transient errors (e.g. Ollama was down) but not
+                    # permanently-failing files like unsupported formats.
+                    needs_index.append(fp)
+        return needs_index
 
     async def stream():
         ollama = _make_ollama()
         full_content: list[str] = []
         full_thinking: list[str] = []
+
+        # Auto-index inside the stream so the response opens immediately and the
+        # user sees indexing progress instead of a blank wait before answering.
+        if context_paths:
+            needs_index = _files_needing_index()
+            if needs_index:
+                async for ev in index_files(needs_index, ollama, settings.embed_model):
+                    if ev["type"] == "progress" and ev["file"]:
+                        yield f"data: {json.dumps({'type': 'indexing', 'done': ev['done'], 'total': ev['total'], 'file': ev['file']})}\n\n"
 
         async for event in answer_stream(
             question=body.content,

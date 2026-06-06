@@ -74,8 +74,8 @@ class OllamaClient:
 
     async def generate_stream(self, model: str, prompt: str, num_ctx: int = 4096, think: bool | None = None):
         payload: dict = {"model": model, "prompt": prompt, "stream": True, "options": {"num_ctx": num_ctx}}
-        if think is True and _supports_thinking(model):
-            payload["think"] = True
+        if _supports_thinking(model):
+            payload["think"] = think is True
         async with self._http().stream(
             "POST",
             f"{self.base_url}/api/generate",
@@ -102,8 +102,8 @@ class OllamaClient:
             "stream": True,
             "options": {"num_ctx": num_ctx},
         }
-        if think is True and _supports_thinking(model):
-            payload["think"] = True
+        if _supports_thinking(model):
+            payload["think"] = think is True
         async with self._http().stream(
             "POST",
             f"{self.base_url}/api/chat",

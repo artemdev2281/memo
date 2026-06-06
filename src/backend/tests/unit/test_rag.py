@@ -79,6 +79,18 @@ async def test_separate_thinking_field_on():
     assert answer == "Answer"
 
 
+async def test_separate_thinking_field_streams_incrementally():
+    # Regression: with reasoning on the dedicated `thinking` field, the answer
+    # content carries no </think> marker. The splitter must NOT buffer it until
+    # the end — each content delta should surface as its own token event.
+    chunks = _content("Hello", " world", thinking=["reason"])
+    events = await _collect(
+        answer_stream("q", [], "qwen3:1.7b", FakeOllama(chunks), "bge-m3", think=True)
+    )
+    token_events = [e for e in events if e["type"] == "token"]
+    assert [e["content"] for e in token_events] == ["Hello", " world"]
+
+
 async def test_separate_thinking_field_discarded_when_off():
     chunks = _content("Answer", thinking=["reason ", "more"])
     events = await _collect(

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase
 
 
@@ -16,6 +16,9 @@ class IndexState(Base):
     file_hash = Column(String(64), nullable=False, default="")
     status = Column(String(16), nullable=False, default="indexed")
     error_msg = Column(Text, nullable=True)
+    # Cheap change-detection pre-filter: skip re-hashing when stat is unchanged.
+    mtime = Column(Float, nullable=False, default=0.0)
+    size = Column(Integer, nullable=False, default=0)
     indexed_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 

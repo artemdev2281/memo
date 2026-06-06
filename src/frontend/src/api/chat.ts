@@ -23,6 +23,7 @@ export interface MessageItem {
 }
 
 export type ChatEvent =
+  | { type: "indexing"; done: number; total: number; file: string }
   | { type: "token"; content: string }
   | { type: "thinking"; content: string }
   | { type: "done"; sources: string[]; stale_warning: boolean }

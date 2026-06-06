@@ -73,5 +73,8 @@ All use the `MEMO_` prefix (configured in `src/backend/memo/settings.py`):
 
 ## Implementation status
 
-- **Stage 0–1** complete: skeleton + document indexing pipeline
-- **Stage 2–4** planned: Q&A chat, auto-organization, document generation
+- **Stage 0–2** complete: skeleton + document indexing pipeline + Q&A chat (RAG, history, reasoning)
+- **Stage 2.5** complete (2026-06-06): Q&A hardening — hash-based stale detection, thinking-stream fix, watcher robustness, in-stream auto-index with progress, mtime/size pre-filter
+- **Stage 3–4** planned: document generation, auto-organization
+
+See `docs/implementation-plan.md` for the staged plan and `docs/code-review-stage2-hardening.md` for open review findings.

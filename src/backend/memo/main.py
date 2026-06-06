@@ -15,12 +15,28 @@ from memo.api.models import router as models_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from memo.db.session import init_db
+    import os
+    import threading
+
+    from memo.db.models import IndexState
+    from memo.db.session import SessionLocal, init_db
     from memo.services import watcher
+    from memo.services.indexer import reconcile_all
     from memo.services.ollama_client import close_client
 
     init_db()
     watcher.start()
+
+    # Re-register watch dirs for all previously indexed files so that
+    # file changes are detected even after a backend restart.
+    with SessionLocal() as db:
+        for row in db.query(IndexState).all():
+            watcher.watch_dir(os.path.dirname(row.file_path))
+
+    # Catch edits made while the backend was down (the watcher only sees live
+    # events). Hashing runs off the event loop so startup isn't blocked.
+    threading.Thread(target=reconcile_all, daemon=True).start()
+
     yield
     watcher.stop()
     await close_client()

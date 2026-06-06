@@ -5,7 +5,7 @@ from typing import AsyncGenerator
 from memo.chroma import get_collection
 from memo.db.models import IndexState
 from memo.db.session import SessionLocal
-from memo.services.document_loader import SUPPORTED, load
+from memo.services.document_loader import SUPPORTED, compute_hash, load
 from memo.services.ollama_client import OllamaClient
 
 CHUNK_SIZE = 1000
@@ -46,13 +46,26 @@ def _db_get(path: str) -> tuple[str, str] | None:
         return (row.file_hash, row.status) if row else None
 
 
+def _stat(path: str) -> tuple[float, int]:
+    try:
+        st = os.stat(path)
+        return st.st_mtime, st.st_size
+    except OSError:
+        return 0.0, 0
+
+
 def _db_upsert(path: str, hash_: str, status: str, error: str | None) -> None:
+    # Record mtime/size only for successfully indexed files — that's the
+    # baseline mark_changed_stale() compares against to skip re-hashing.
+    mtime, size = _stat(path) if status == "indexed" else (0.0, 0)
     with SessionLocal() as db:
         row = db.query(IndexState).filter(IndexState.file_path == path).first()
         if row:
             row.file_hash = hash_
             row.status = status
             row.error_msg = error
+            row.mtime = mtime
+            row.size = size
             row.indexed_at = datetime.now(timezone.utc)
         else:
             db.add(
@@ -61,10 +74,59 @@ def _db_upsert(path: str, hash_: str, status: str, error: str | None) -> None:
                     file_hash=hash_,
                     status=status,
                     error_msg=error,
+                    mtime=mtime,
+                    size=size,
                     indexed_at=datetime.now(timezone.utc),
                 )
             )
         db.commit()
+
+
+def mark_changed_stale(paths: list[str]) -> None:
+    """Re-hash already-'indexed' files and flip any whose content changed to
+    'stale'.
+
+    Content hashing is the source of truth for staleness. The filesystem
+    watcher is only a best-effort optimisation: it can miss events (e.g.
+    ReadDirectoryChangesW buffer overflow under rapid edits) or fire while the
+    app is closed. Calling this on demand — before answering a chat and on
+    startup — guarantees a changed file is detected on *every* edit, not just
+    the first one the watcher happened to catch.
+    """
+    with SessionLocal() as db:
+        for path in paths:
+            row = db.query(IndexState).filter(IndexState.file_path == path).first()
+            if row is None or row.status != "indexed":
+                continue
+            try:
+                st = os.stat(path)
+            except OSError:
+                # Unreadable / temporarily missing (e.g. disconnected drive):
+                # leave the existing index untouched rather than destroy it.
+                continue
+            # Cheap pre-filter: identical mtime+size → assume unchanged, no hash.
+            if st.st_mtime == row.mtime and st.st_size == row.size:
+                continue
+            try:
+                current = compute_hash(path)
+            except OSError:
+                continue
+            if current != row.file_hash:
+                row.status = "stale"
+            else:
+                # Content identical, only metadata touched → refresh the
+                # baseline so this file isn't re-hashed on every future message.
+                row.mtime = st.st_mtime
+                row.size = st.st_size
+        db.commit()
+
+
+def reconcile_all() -> None:
+    """Flip every indexed file whose content changed to 'stale'. Runs at
+    startup to catch edits made while the watcher was not running."""
+    with SessionLocal() as db:
+        paths = [r.file_path for r in db.query(IndexState).filter(IndexState.status == "indexed").all()]
+    mark_changed_stale(paths)
 
 
 async def index_files(

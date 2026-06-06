@@ -131,7 +131,9 @@ async def answer_stream(
         with SessionLocal() as db:
             for fp in expanded:
                 row = db.query(IndexState).filter(IndexState.file_path == fp).first()
-                if row and row.status == "stale":
+                # "error" also means the file's current content isn't reflected
+                # in the index → warn the user the answer may be incomplete.
+                if row and row.status in ("stale", "error"):
                     stale_warning = True
                     break
 
@@ -152,13 +154,22 @@ async def answer_stream(
             thinking_delta = msg.get("thinking") or ""
             content_delta = msg.get("content") or ""
 
-            if thinking_delta and think_on:
-                yield {"type": "thinking", "content": thinking_delta}
+            if thinking_delta:
+                if think_on:
+                    yield {"type": "thinking", "content": thinking_delta}
+                # Reasoning arrives on the dedicated `thinking` channel → `content`
+                # is already the clean answer. Stream it directly instead of
+                # buffering for a </think> marker that will never come (the bug
+                # that previously held the whole answer back until the end).
+                answer_started = True
 
             if content_delta:
                 if answer_started:
                     yield {"type": "token", "content": content_delta}
                 else:
+                    # No dedicated thinking field seen yet → reasoning may be
+                    # inline, terminated by </think> (qwen3 ignoring think=false),
+                    # with or without an opening <think>. Buffer until we see it.
                     content_buf += content_delta
                     if "</think>" in content_buf:
                         before, after = content_buf.split("</think>", 1)

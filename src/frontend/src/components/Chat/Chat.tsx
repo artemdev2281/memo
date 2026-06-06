@@ -49,6 +49,7 @@ export function Chat() {
 
   const [input, setInput] = useState("");
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [indexingStatus, setIndexingStatus] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // True while THIS chat (the one on screen) is streaming.
@@ -113,6 +114,7 @@ export function Chat() {
 
     setInput("");
     setStreamError(null);
+    setIndexingStatus(null);
     setStreamingChatId(chatId);
 
     const userMsg = {
@@ -143,10 +145,15 @@ export function Chat() {
     try {
       for await (const event of streamMessage(chatId, text, selectedModel, contextPaths, thinkingEnabled)) {
         if (useAppStore.getState().activeChatId !== chatId) break;
-        if (event.type === "token") {
+        if (event.type === "indexing") {
+          const name = event.file.split(/[\\/]/).pop() || event.file;
+          setIndexingStatus(`Индексация: ${name} (${event.done}/${event.total})`);
+        } else if (event.type === "token") {
+          setIndexingStatus(null);
           fullContent += event.content;
           updateLastAssistantMessage(fullContent);
         } else if (event.type === "thinking") {
+          setIndexingStatus(null);
           fullThinking += event.content;
           updateLastAssistantThinking(fullThinking);
         } else if (event.type === "done") {
@@ -166,6 +173,7 @@ export function Chat() {
     } catch (e) {
       setStreamError((e as Error).message);
     } finally {
+      setIndexingStatus(null);
       if (useAppStore.getState().streamingChatId === chatId) {
         setStreamingChatId(null);
       }
@@ -238,9 +246,16 @@ export function Chat() {
             activeStreaming &&
             !!msg.thinking &&
             !msg.content;
+          const showIndexingStatus =
+            msg.role === "assistant" && isLast && activeStreaming && !!indexingStatus && !msg.content;
           return (
             <div key={msg.id} className={`chat-message ${msg.role}`}>
-              {msg.role === "assistant" && showThinkingStatus && (
+              {msg.role === "assistant" && showIndexingStatus && (
+                <div className="chat-thinking-status">
+                  <span className="chat-thinking-dots">{indexingStatus}</span>
+                </div>
+              )}
+              {msg.role === "assistant" && showThinkingStatus && !showIndexingStatus && (
                 <div className="chat-thinking-status">
                   <span className="chat-thinking-dots">Думаю</span>
                 </div>
@@ -258,7 +273,7 @@ export function Chat() {
                       {msg.content}
                     </ReactMarkdown>
                   ) : (
-                    !showThinkingStatus && <span style={{ color: "#555" }}>…</span>
+                    !showThinkingStatus && !showIndexingStatus && <span style={{ color: "#555" }}>…</span>
                   )
                 ) : (
                   <p>{msg.content}</p>

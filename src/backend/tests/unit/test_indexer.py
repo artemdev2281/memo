@@ -1,6 +1,7 @@
 import pytest
 
-from memo.services.indexer import _chunks, _expand_paths, index_files
+from memo.db.models import IndexState
+from memo.services.indexer import _chunks, _expand_paths, index_files, mark_changed_stale
 
 
 def test_chunks_basic():
@@ -113,6 +114,77 @@ async def test_index_metadata_includes_file_name_and_hash(tmp_path, in_memory_db
     assert meta["file_name"] == "myfile.txt"
     assert "file_hash" in meta
     assert meta["file_path"] == str(f)
+
+
+def _status(db_factory, path) -> str | None:
+    with db_factory() as db:
+        row = db.query(IndexState).filter(IndexState.file_path == path).first()
+        return row.status if row else None
+
+
+@pytest.mark.asyncio
+async def test_mark_changed_stale_detects_repeated_edits(tmp_path, in_memory_db, mock_chroma):
+    # Reproduces the reported bug: status must flip to stale on EVERY edit, not
+    # just the first — even without the filesystem watcher firing.
+    f = tmp_path / "doc.txt"
+    f.write_text("one " * 50, encoding="utf-8")
+    async for _ in index_files([str(f)], _FakeOllama(), "bge-m3"):
+        pass
+    assert _status(in_memory_db, str(f)) == "indexed"
+
+    # First edit (different size) → detected.
+    f.write_text("two longer content " * 50, encoding="utf-8")
+    mark_changed_stale([str(f)])
+    assert _status(in_memory_db, str(f)) == "stale"
+
+    # Re-index, then a SECOND edit → must be detected again.
+    async for _ in index_files([str(f)], _FakeOllama(), "bge-m3"):
+        pass
+    assert _status(in_memory_db, str(f)) == "indexed"
+    f.write_text("three even more different content " * 50, encoding="utf-8")
+    mark_changed_stale([str(f)])
+    assert _status(in_memory_db, str(f)) == "stale"
+
+
+@pytest.mark.asyncio
+async def test_mark_changed_stale_leaves_unchanged_file_indexed(tmp_path, in_memory_db, mock_chroma):
+    f = tmp_path / "doc.txt"
+    f.write_text("stable content " * 50, encoding="utf-8")
+    async for _ in index_files([str(f)], _FakeOllama(), "bge-m3"):
+        pass
+    mark_changed_stale([str(f)])
+    assert _status(in_memory_db, str(f)) == "indexed"
+
+
+def test_mark_changed_stale_ignores_untracked_and_missing(tmp_path, in_memory_db):
+    # No row → no-op; unreadable/missing path → left untouched, no exception.
+    mark_changed_stale([str(tmp_path / "never_indexed.txt")])
+    assert _status(in_memory_db, str(tmp_path / "never_indexed.txt")) is None
+
+
+@pytest.mark.asyncio
+async def test_mark_changed_stale_skips_hashing_when_stat_unchanged(
+    tmp_path, in_memory_db, mock_chroma, monkeypatch
+):
+    # The cheap mtime+size pre-filter must avoid re-hashing unchanged files.
+    f = tmp_path / "doc.txt"
+    f.write_text("content " * 50, encoding="utf-8")
+    async for _ in index_files([str(f)], _FakeOllama(), "bge-m3"):
+        pass
+
+    import memo.services.indexer as indexer_mod
+
+    calls = {"n": 0}
+    real_hash = indexer_mod.compute_hash
+
+    def _counting_hash(path):
+        calls["n"] += 1
+        return real_hash(path)
+
+    monkeypatch.setattr(indexer_mod, "compute_hash", _counting_hash)
+    mark_changed_stale([str(f)])
+    assert calls["n"] == 0  # stat matched → no hashing
+    assert _status(in_memory_db, str(f)) == "indexed"
 
 
 @pytest.mark.asyncio
