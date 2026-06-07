@@ -80,8 +80,9 @@ export function ChatList() {
             key={chat.id}
             className={`chat-list-item${activeChatId === chat.id ? " active" : ""}`}
             onClick={() => {
-              setActiveChatId(chat.id);
+              if (activeChatId === chat.id) return;
               setMessages([]);
+              setActiveChatId(chat.id);
             }}
           >
             {editingId === chat.id ? (

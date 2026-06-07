@@ -46,6 +46,25 @@ def test_expand_paths_directory(tmp_path):
     assert len(result) == 2
 
 
+def test_expand_paths_directory_filters_unsupported(tmp_path):
+    # A folder with a mix of documents and other files must yield only the
+    # supported documents — otherwise unsupported files become "error" rows that
+    # falsely trip the stale/incomplete warning for the whole folder.
+    (tmp_path / "doc.txt").write_text("a")
+    (tmp_path / "image.png").write_bytes(b"\x89PNG")
+    (tmp_path / "sheet.xlsx").write_bytes(b"PK")
+    result = _expand_paths([str(tmp_path)])
+    assert result == [str(tmp_path / "doc.txt")]
+
+
+def test_expand_paths_explicit_unsupported_file_kept(tmp_path):
+    # An explicitly selected file is honoured even if unsupported, so the user
+    # still gets a clear per-file error rather than silent omission.
+    f = tmp_path / "sheet.xlsx"
+    f.write_bytes(b"PK")
+    assert _expand_paths([str(f)]) == [str(f)]
+
+
 def test_expand_paths_nonexistent():
     result = _expand_paths(["/nonexistent/path/file.txt"])
     assert result == []

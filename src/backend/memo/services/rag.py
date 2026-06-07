@@ -28,19 +28,27 @@ def _context_filter(paths: list[str]) -> dict | None:
     return {"file_path": {"$in": expanded}}
 
 
+# Chroma cosine distance = 1 - cosine_similarity (range 0..2; lower = closer).
+# Chunks farther than this are treated as irrelevant and dropped, so an
+# off-topic question yields no context (and no misleading "sources") instead of
+# always force-feeding the top-k nearest, however distant.
+_MAX_DISTANCE = 0.75
+
+
 def retrieve(
     question: str,
     context_paths: list[str],
     question_embedding: list[float],
     k: int = 5,
 ) -> tuple[list[str], list[dict]]:
-    """Return (texts, metadatas) of top-k relevant chunks."""
+    """Return (texts, metadatas) of the top-k chunks within the relevance
+    threshold."""
     collection = get_collection()
     where = _context_filter(context_paths) if context_paths else None
     query_kwargs: dict = {
         "query_embeddings": [question_embedding],
         "n_results": k,
-        "include": ["documents", "metadatas"],
+        "include": ["documents", "metadatas", "distances"],
     }
     if where:
         query_kwargs["where"] = where
@@ -51,6 +59,14 @@ def retrieve(
 
     docs = results.get("documents", [[]])[0] or []
     metas = results.get("metadatas", [[]])[0] or []
+
+    # distances may be absent (older Chroma / mocked calls) → skip filtering.
+    dists = (results.get("distances") or [[]])[0] or []
+    if dists and len(dists) == len(docs):
+        kept = [(d, m) for d, m, dist in zip(docs, metas, dists) if dist <= _MAX_DISTANCE]
+        docs = [d for d, _ in kept]
+        metas = [m for _, m in kept]
+
     return docs, metas
 
 

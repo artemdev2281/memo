@@ -73,8 +73,17 @@ export function Chat() {
   useEffect(() => {
     if (activeChatId !== null) {
       let cancelled = false;
-      listMessages(activeChatId)
-        .then((msgs) => { if (!cancelled) setMessages(msgs); })
+      const loadForId = activeChatId;
+      listMessages(loadForId)
+        .then((msgs) => {
+          // Skip if the request was cancelled (chat switched again) OR if we
+          // are actively streaming into this very chat. In the latter case the
+          // optimistic messages appended by handleSend are still live — calling
+          // setMessages([]) would wipe them before the stream finishes.
+          if (!cancelled && useAppStore.getState().streamingChatId !== loadForId) {
+            setMessages(msgs);
+          }
+        })
         .catch(() => {});
       return () => { cancelled = true; };
     }

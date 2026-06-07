@@ -67,17 +67,32 @@ class OllamaClient:
         for i in range(0, len(texts), BATCH):
             batch = texts[i : i + BATCH]
             for attempt in range(RETRIES):
-                r = await self._http().post(
-                    f"{self.base_url}/api/embed",
-                    json={"model": model, "input": batch},
-                    timeout=120.0,
-                )
+                try:
+                    r = await self._http().post(
+                        f"{self.base_url}/api/embed",
+                        json={"model": model, "input": batch},
+                        timeout=120.0,
+                    )
+                except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout):
+                    # A cold Ollama refuses/times out before it can answer (no
+                    # 500) — retry with backoff instead of aborting the whole
+                    # index on the first chunk.
+                    if attempt < RETRIES - 1:
+                        await asyncio.sleep(3 * (attempt + 1))
+                        continue
+                    raise
                 if r.status_code == 500 and attempt < RETRIES - 1:
                     # Ollama returns 500 while loading a model into memory.
                     await asyncio.sleep(3 * (attempt + 1))
                     continue
                 r.raise_for_status()
-                results.extend(r.json()["embeddings"])
+                embeddings = r.json()["embeddings"]
+                if len(embeddings) != len(batch):
+                    raise ValueError(
+                        f"Ollama returned {len(embeddings)} embeddings for "
+                        f"{len(batch)} inputs"
+                    )
+                results.extend(embeddings)
                 break
         return results
 

@@ -32,18 +32,26 @@ def _expand_paths(paths: list[str]) -> list[str]:
     for path in paths:
         abs_path = os.path.abspath(path)
         if os.path.isfile(abs_path):
+            # Explicitly selected files are honoured as-is; an unsupported one
+            # still surfaces a clear per-file "Unsupported format" error.
             files.append(abs_path)
         elif os.path.isdir(abs_path):
+            # When expanding a directory, keep only supported documents. Pulling
+            # in every file (images, spreadsheets, …) would mark each as an
+            # "error" row, which then falsely trips the stale/incomplete warning
+            # for any chat scoped to that folder.
             for root, _, names in os.walk(abs_path):
                 for name in sorted(names):
-                    files.append(os.path.join(root, name))
+                    if os.path.splitext(name)[1].lower() in SUPPORTED:
+                        files.append(os.path.join(root, name))
     return files
 
 
-def _db_get(path: str) -> tuple[str, str] | None:
+def _db_get_baseline(path: str) -> tuple[str, str, float, int] | None:
+    """(hash, status, mtime, size) — used for the cheap unchanged-file pre-skip."""
     with SessionLocal() as db:
         row = db.query(IndexState).filter(IndexState.file_path == path).first()
-        return (row.file_hash, row.status) if row else None
+        return (row.file_hash, row.status, row.mtime, row.size) if row else None
 
 
 def _stat(path: str) -> tuple[float, int]:
@@ -136,6 +144,7 @@ async def index_files(
 ) -> AsyncGenerator[dict, None]:
     files = _expand_paths(paths)
     total = len(files)
+    collection = get_collection()
 
     for i, path in enumerate(files):
         yield {"type": "progress", "done": i, "total": total, "file": path}
@@ -146,6 +155,15 @@ async def index_files(
             yield {"type": "error", "file": path, "msg": "Unsupported format"}
             continue
 
+        # Cheap pre-skip: an already-indexed file whose mtime+size match the
+        # recorded baseline is unchanged → skip without reading/hashing it.
+        baseline = _db_get_baseline(path)
+        if baseline and baseline[1] == "indexed":
+            mtime, size = _stat(path)
+            if mtime == baseline[2] and size == baseline[3]:
+                yield {"type": "skip", "file": path}
+                continue
+
         try:
             doc = load(path)
         except Exception as e:
@@ -153,8 +171,9 @@ async def index_files(
             yield {"type": "error", "file": path, "msg": str(e)}
             continue
 
-        existing = _db_get(path)
-        if existing and existing[0] == doc.file_hash and existing[1] == "indexed":
+        # Authoritative skip: content hash unchanged (stat may have shifted with
+        # identical bytes).
+        if baseline and baseline[0] == doc.file_hash and baseline[1] == "indexed":
             yield {"type": "skip", "file": path}
             continue
 
@@ -171,7 +190,6 @@ async def index_files(
             yield {"type": "error", "file": path, "msg": f"Embedding failed: {e}"}
             continue
 
-        collection = get_collection()
         delete_failed = False
         try:
             existing_ids = collection.get(where={"file_path": path})["ids"]

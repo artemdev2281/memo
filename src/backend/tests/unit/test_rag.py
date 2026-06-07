@@ -149,6 +149,36 @@ def test_retrieve_uses_context_filter(mock_chroma, tmp_path):
     assert call_kwargs["where"] == {"file_path": str(f)}
 
 
+def test_retrieve_drops_chunks_beyond_distance_threshold(mock_chroma, tmp_path):
+    f = tmp_path / "a.txt"
+    f.write_text("content")
+    mock_chroma.query.return_value = {
+        "documents": [["close chunk", "far chunk"]],
+        "metadatas": [
+            [
+                {"file_path": str(f), "file_name": "a.txt", "chunk_index": 0},
+                {"file_path": str(f), "file_name": "a.txt", "chunk_index": 1},
+            ]
+        ],
+        "distances": [[0.2, 1.5]],  # second chunk is well past the threshold
+    }
+    docs, metas = retrieve("question", [str(f)], [0.1, 0.2, 0.3])
+    assert docs == ["close chunk"]
+    assert len(metas) == 1
+
+
+def test_retrieve_keeps_all_when_distances_absent(mock_chroma, tmp_path):
+    # Back-compat: a query result without a distances field must not be filtered.
+    f = tmp_path / "a.txt"
+    f.write_text("content")
+    mock_chroma.query.return_value = {
+        "documents": [["chunk text"]],
+        "metadatas": [[{"file_path": str(f), "file_name": "a.txt", "chunk_index": 0}]],
+    }
+    docs, _ = retrieve("question", [str(f)], [0.1, 0.2, 0.3])
+    assert docs == ["chunk text"]
+
+
 def test_retrieve_multi_path_uses_in_filter(mock_chroma, tmp_path):
     fa = tmp_path / "a.txt"
     fb = tmp_path / "b.txt"

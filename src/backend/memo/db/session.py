@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from memo.db.models import Base
@@ -10,10 +10,25 @@ from memo.settings import settings
 def _make_engine():
     data_dir = os.path.abspath(settings.data_dir)
     os.makedirs(data_dir, exist_ok=True)
-    return create_engine(
+    eng = create_engine(
         f"sqlite:///{os.path.join(data_dir, 'memo.db')}",
         connect_args={"check_same_thread": False},
     )
+
+    # The app writes to SQLite from several threads concurrently — the watchdog
+    # observer, the startup reconcile daemon, background /refresh-stale tasks and
+    # the chat auto-index inside the request stream. WAL lets readers and a
+    # writer coexist, and busy_timeout makes a blocked writer wait instead of
+    # raising "database is locked" immediately.
+    @event.listens_for(eng, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, _record):  # noqa: ANN001
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=5000")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.close()
+
+    return eng
 
 
 engine = _make_engine()
