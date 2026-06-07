@@ -40,7 +40,6 @@ $BackendDir  = Join-Path $Root 'src\backend'
 $FrontendDir = Join-Path $Root 'src\frontend'
 $VenvDir     = Join-Path $BackendDir '.venv'
 $VenvPython  = Join-Path $VenvDir 'Scripts\python.exe'
-$VenvPip     = Join-Path $VenvDir 'Scripts\pip.exe'
 
 # =============================================================================
 # 1. CHECK PREREQUISITES
@@ -79,7 +78,7 @@ if (-not $pythonCmd) {
 
 # Node.js 18+
 if (Get-Command node -ErrorAction SilentlyContinue) {
-    $nodeVer  = (node --version) -replace 'v',''
+    $nodeVer   = (node --version) -replace 'v',''
     $nodeMajor = [int]($nodeVer.Split('.')[0])
     if ($nodeMajor -ge 18) {
         Write-Ok "Node.js v$nodeVer found"
@@ -157,7 +156,7 @@ if ($SkipModelPull) {
     Write-Warn 'Skipping model pull (-SkipModelPull)'
 } else {
     try {
-        $tags = Invoke-RestMethod -Uri 'http://localhost:11434/api/tags' -ErrorAction Stop
+        $tags      = Invoke-RestMethod -Uri 'http://localhost:11434/api/tags' -ErrorAction Stop
         $installed = $tags.models | ForEach-Object { $_.name }
     } catch {
         $installed = @()
@@ -216,9 +215,11 @@ if ($SkipInstall -and (Test-Path $VenvPython)) {
         Write-Ok '.venv already exists'
     }
 
-    Write-Host '    Installing Python dependencies (pip install -e .)...'
-    & $VenvPip install --upgrade pip -q
-    & $VenvPip install -e . -q
+    Write-Host '    Installing Python dependencies...'
+    # Upgrade pip via python -m pip (pip.exe cannot upgrade itself on Windows)
+    & $VenvPython -m pip install --upgrade pip -q 2>&1 | Out-Null
+
+    & $VenvPython -m pip install -e . -q
     if ($LASTEXITCODE -ne 0) {
         Write-Fail 'pip install failed'
         Pop-Location ; exit 1
