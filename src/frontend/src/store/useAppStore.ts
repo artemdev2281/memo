@@ -57,6 +57,9 @@ interface AppStore {
 
   thinkingEnabled: boolean;
   setThinkingEnabled: (v: boolean) => void;
+
+  rightPanelMode: "chat" | "generate";
+  setRightPanelMode: (mode: "chat" | "generate") => void;
 }
 
 const _savedModel = typeof localStorage !== "undefined"
@@ -155,6 +158,9 @@ export const useAppStore = create<AppStore>((set) => ({
     }
     set({ thinkingEnabled: v });
   },
+
+  rightPanelMode: "chat",
+  setRightPanelMode: (mode) => set({ rightPanelMode: mode }),
 }));
 
 export function collectFilePaths(node: FileNode): string[] {

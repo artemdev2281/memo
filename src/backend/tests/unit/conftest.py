@@ -39,5 +39,6 @@ def mock_chroma(monkeypatch):
     monkeypatch.setattr("memo.chroma.get_collection", lambda: col)
     monkeypatch.setattr("memo.services.indexer.get_collection", lambda: col)
     monkeypatch.setattr("memo.services.rag.get_collection", lambda: col)
+    monkeypatch.setattr("memo.services.organizer.get_collection", lambda: col)
 
     return col

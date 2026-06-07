@@ -1,3 +1,32 @@
+.right-panel-mode-bar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #2a2a2a;
+  background: #111;
+  flex-shrink: 0;
+}
+
+.right-panel-mode-btn {
+  padding: 4px 12px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.right-panel-mode-btn:hover {
+  background: #2a2a2a;
+}
+
+.right-panel-mode-btn.active {
+  background: #2a4a6a;
+  border-color: #4a7aaa;
+  color: #fff;
+}
+
 .panel-placeholder {
   padding: 16px;
   color: #8c8c8c;

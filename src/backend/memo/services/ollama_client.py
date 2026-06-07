@@ -59,17 +59,26 @@ class OllamaClient:
         return [m["name"] for m in data.get("models", [])]
 
     async def embed(self, texts: list[str], model: str) -> list[list[float]]:
+        import asyncio
+
         BATCH = 32
+        RETRIES = 4
         results: list[list[float]] = []
         for i in range(0, len(texts), BATCH):
             batch = texts[i : i + BATCH]
-            r = await self._http().post(
-                f"{self.base_url}/api/embed",
-                json={"model": model, "input": batch},
-                timeout=120.0,
-            )
-            r.raise_for_status()
-            results.extend(r.json()["embeddings"])
+            for attempt in range(RETRIES):
+                r = await self._http().post(
+                    f"{self.base_url}/api/embed",
+                    json={"model": model, "input": batch},
+                    timeout=120.0,
+                )
+                if r.status_code == 500 and attempt < RETRIES - 1:
+                    # Ollama returns 500 while loading a model into memory.
+                    await asyncio.sleep(3 * (attempt + 1))
+                    continue
+                r.raise_for_status()
+                results.extend(r.json()["embeddings"])
+                break
         return results
 
     async def generate_stream(self, model: str, prompt: str, num_ctx: int = 4096, think: bool | None = None):

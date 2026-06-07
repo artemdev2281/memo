@@ -194,3 +194,73 @@
   text-align: center;
   padding-top: 32px;
 }
+
+.lp-btn-organize {
+  background: #1e3028;
+  border-color: #4a7a5a;
+  color: #a8e6b8;
+}
+
+.lp-btn-organize:hover:not(:disabled) {
+  background: #2a4a38;
+}
+
+.lp-btn-analyze {
+  background: #1a304a;
+  border-color: #4a6a9a;
+  color: #a8c8e8;
+  font-weight: 600;
+}
+
+.lp-organize-container {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.lp-organize-options {
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lp-subfolder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.lp-subfolder-toggle input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.lp-organize-btn-row {
+  display: flex;
+  gap: 6px;
+}
+
+.lp-analyzing-hint {
+  font-size: 11px;
+  color: #666;
+  margin: 0;
+}
+
+.lp-empty-hint {
+  font-size: 12px;
+  color: #888;
+  margin: 0;
+}
+
+.lp-organize-result {
+  padding: 6px 8px;
+  background: #1a3028;
+  border: 1px solid #4a7a5a;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #4caf50;
+}

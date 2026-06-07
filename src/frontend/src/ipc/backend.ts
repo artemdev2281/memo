@@ -4,7 +4,7 @@ let _port: number | null = null;
 let _inFlight: Promise<number> | null = null;
 
 async function poll(): Promise<number> {
-  for (let attempt = 0; attempt < 40; attempt++) {
+  for (let attempt = 0; attempt < 120; attempt++) {
     const port = await invoke<number | null>("get_backend_port");
     if (port !== null) {
       _port = port;
@@ -12,7 +12,7 @@ async function poll(): Promise<number> {
     }
     await new Promise((r) => setTimeout(r, 250));
   }
-  throw new Error("Backend did not start within 10 seconds");
+  throw new Error("Backend did not start within 30 seconds");
 }
 
 export async function getBackendPort(): Promise<number> {
