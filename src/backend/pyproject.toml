@@ -17,6 +17,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "watchdog>=4.0",
     "scikit-learn>=1.5",
+    "charset-normalizer>=3.0",
 ]
 
 [project.optional-dependencies]

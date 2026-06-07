@@ -39,7 +39,12 @@ def load(path: str) -> Document:
         d = DocxDocument(path)
         text = "\n".join(p.text for p in d.paragraphs if p.text)
     else:
-        with open(path, encoding="utf-8", errors="replace") as f:
-            text = f.read()
+        raw = open(path, "rb").read()
+        try:
+            from charset_normalizer import from_bytes
+            match = from_bytes(raw).best()
+            text = str(match) if match else raw.decode("utf-8", errors="replace")
+        except Exception:
+            text = raw.decode("utf-8", errors="replace")
 
     return Document(path=path, text=text, file_hash=h)
