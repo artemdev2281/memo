@@ -1,4 +1,5 @@
 import os
+import unicodedata
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
@@ -12,7 +13,18 @@ CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 100
 
 
+def _sanitize(text: str) -> str:
+    # Drop control characters (NUL, etc.) that survive decoding of a malformed
+    # file. They embed to nothing useful and can make Ollama's embed endpoint
+    # 500 on the batch. Keep newlines and tabs.
+    return "".join(
+        ch for ch in text
+        if ch in "\n\t" or unicodedata.category(ch)[0] != "C"
+    )
+
+
 def _chunks(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
+    text = _sanitize(text)
     if not text.strip():
         return []
     # Guard against a non-advancing window (infinite loop) on bad config.
@@ -20,7 +32,11 @@ def _chunks(text: str, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> 
     result = []
     start = 0
     while start < len(text):
-        result.append(text[start : start + size])
+        chunk = text[start : start + size]
+        # Skip whitespace-only windows: Ollama's /api/embed returns 500 if any
+        # item in the batch is empty/blank, which would fail the whole file.
+        if chunk.strip():
+            result.append(chunk)
         start = start + size - overlap
         if start >= len(text):
             break
