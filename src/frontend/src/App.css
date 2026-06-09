@@ -1,58 +1,87 @@
-.right-panel-mode-bar {
+.app-shell {
   display: flex;
-  gap: 4px;
-  padding: 6px 8px;
-  border-bottom: 1px solid #2a2a2a;
-  background: #111;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 44px;
+  padding: 0 14px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-.right-panel-mode-btn {
-  padding: 4px 12px;
-  border: 1px solid #333;
-  border-radius: 4px;
-  background: transparent;
-  color: #aaa;
-  cursor: pointer;
-  font-size: 12px;
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  user-select: none;
 }
 
-.right-panel-mode-btn:hover {
-  background: #2a2a2a;
+.app-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--accent-grad);
+  box-shadow: 0 0 10px rgba(139, 134, 248, 0.45);
 }
 
-.right-panel-mode-btn.active {
-  background: #2a4a6a;
-  border-color: #4a7aaa;
-  color: #fff;
+.app-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px;
 }
 
-.panel-placeholder {
-  padding: 16px;
-  color: #8c8c8c;
-}
-
-.panel-placeholder h3 {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #bbbbbb;
-  margin-bottom: 12px;
-}
-
-.health-badge {
+.app-tab {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
   font-size: 12px;
-  background: #2d2d2d;
-  margin-top: 8px;
+  font-weight: 500;
+  padding: 5px 12px;
+  transition: background 0.15s, color 0.15s;
 }
 
-.health-badge.ok { color: #4ec94e; }
-.health-badge.warn { color: #ff8c42; }
-.health-badge.err { color: #f44747; }
-.health-badge.pending { color: #8c8c8c; }
+.app-tab:hover {
+  color: var(--text);
+}
+
+.app-tab.active {
+  background: var(--bg-raised);
+  color: var(--accent-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.app-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.right-panel {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.right-panel-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}

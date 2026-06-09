@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { listMessages, listModels, streamMessage } from "../../api/chat";
+import { createChat, listMessages, listModels, streamMessage } from "../../api/chat";
 import { useAppStore } from "../../store/useAppStore";
+import {
+  IconFolder,
+  IconLightbulb,
+  IconMessage,
+  IconPaperclip,
+  IconSend,
+} from "../Icon/Icon";
 import "./Chat.css";
 
 function ContextBadge() {
@@ -10,18 +17,20 @@ function ContextBadge() {
   if (selectedPaths.size > 0) {
     return (
       <span className="chat-context-badge" title={[...selectedPaths].join(", ")}>
-        📎 {selectedPaths.size} файл(ов)
+        <IconPaperclip size={11} />
+        {selectedPaths.size} файл(ов)
       </span>
     );
   }
   if (workDir) {
     return (
       <span className="chat-context-badge" title={workDir}>
-        📁 {workDir.split(/[\\/]/).pop() || workDir}
+        <IconFolder size={11} />
+        {workDir.split(/[\\/]/).pop() || workDir}
       </span>
     );
   }
-  return <span className="chat-context-badge">Без контекста</span>;
+  return <span className="chat-context-badge chat-context-none">Без контекста</span>;
 }
 
 export function Chat() {
@@ -50,7 +59,11 @@ export function Chat() {
   const [input, setInput] = useState("");
   const [streamError, setStreamError] = useState<string | null>(null);
   const [indexingStatus, setIndexingStatus] = useState<string | null>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Tracks whether the user has scrolled away from the bottom; while true,
+  // streaming tokens must not yank the view back down.
+  const stickToBottomRef = useRef(true);
 
   // True while THIS chat (the one on screen) is streaming.
   const activeStreaming = streamingChatId !== null && streamingChatId === activeChatId;
@@ -61,7 +74,9 @@ export function Chat() {
       .then((models) => {
         if (cancelled) return;
         setAvailableModels(models);
-        if (!selectedModel && models.length > 0) {
+        // Also re-pick when the saved model no longer exists in Ollama —
+        // otherwise the <select> silently shows an empty value.
+        if ((!selectedModel || !models.includes(selectedModel)) && models.length > 0) {
           const preferred = models.find((m) => m.startsWith("qwen3")) ?? models[0];
           setSelectedModel(preferred);
         }
@@ -71,6 +86,7 @@ export function Chat() {
   }, []);
 
   useEffect(() => {
+    setStreamError(null);
     if (activeChatId !== null) {
       let cancelled = false;
       const loadForId = activeChatId;
@@ -89,8 +105,16 @@ export function Chat() {
     }
   }, [activeChatId]);
 
+  function onMessagesScroll() {
+    const el = messagesRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  }
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (stickToBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const contextPaths =
@@ -110,21 +134,26 @@ export function Chat() {
 
     let chatId = activeChatId;
     if (chatId === null) {
-      const { createChat } = await import("../../api/chat");
-      const chat = await createChat({
-        model: selectedModel,
-        context_type: contextPaths.length > 0 ? (selectedPaths.size > 0 ? "files" : "folder") : "none",
-        context_paths: contextPaths,
-      });
-      addChat(chat);
-      setActiveChatId(chat.id);
-      chatId = chat.id;
+      try {
+        const chat = await createChat({
+          model: selectedModel,
+          context_type: contextPaths.length > 0 ? (selectedPaths.size > 0 ? "files" : "folder") : "none",
+          context_paths: contextPaths,
+        });
+        addChat(chat);
+        setActiveChatId(chat.id);
+        chatId = chat.id;
+      } catch (e) {
+        setStreamError(`Не удалось создать чат: ${(e as Error).message}`);
+        return;
+      }
     }
 
     setInput("");
     setStreamError(null);
     setIndexingStatus(null);
     setStreamingChatId(chatId);
+    stickToBottomRef.current = true;
 
     const userMsg = {
       id: Date.now(),
@@ -193,22 +222,29 @@ export function Chat() {
     return (
       <div className="chat-panel">
         <div className="chat-no-chat">
+          <div className="chat-no-chat-icon">
+            <IconMessage size={32} />
+          </div>
           <p>Создайте чат для начала работы</p>
           <button
-            className="chat-no-chat-btn"
+            className="btn btn-primary chat-no-chat-btn"
             onClick={async () => {
-              const { createChat } = await import("../../api/chat");
-              const chat = await createChat({
-                model: selectedModel || "",
-                context_type: contextPaths.length > 0 ? (selectedPaths.size > 0 ? "files" : "folder") : "none",
-                context_paths: contextPaths,
-              });
-              addChat(chat);
-              setActiveChatId(chat.id);
+              try {
+                const chat = await createChat({
+                  model: selectedModel || "",
+                  context_type: contextPaths.length > 0 ? (selectedPaths.size > 0 ? "files" : "folder") : "none",
+                  context_paths: contextPaths,
+                });
+                addChat(chat);
+                setActiveChatId(chat.id);
+              } catch (e) {
+                setStreamError(`Не удалось создать чат: ${(e as Error).message}`);
+              }
             }}
           >
-            + Новый чат
+            Новый чат
           </button>
+          {streamError && <div className="chat-error-msg">{streamError}</div>}
         </div>
       </div>
     );
@@ -238,14 +274,17 @@ export function Chat() {
           onClick={() => setThinkingEnabled(!thinkingEnabled)}
           title={thinkingEnabled ? "Режим рассуждений включён" : "Режим рассуждений выключен"}
         >
-          💭
+          <IconLightbulb size={14} />
         </button>
         <ContextBadge />
       </div>
 
-      <div className="chat-messages">
+      <div className="chat-messages" ref={messagesRef} onScroll={onMessagesScroll}>
         {messages.length === 0 && !activeStreaming && (
-          <div className="chat-empty">Задайте вопрос по выбранным документам</div>
+          <div className="chat-empty">
+            <IconMessage size={28} />
+            Задайте вопрос по выбранным документам
+          </div>
         )}
         {messages.map((msg) => {
           const isLast = msg === lastMsg;
@@ -282,10 +321,12 @@ export function Chat() {
                       {msg.content}
                     </ReactMarkdown>
                   ) : (
-                    !showThinkingStatus && !showIndexingStatus && <span style={{ color: "#555" }}>…</span>
+                    !showThinkingStatus && !showIndexingStatus && (
+                      <span className="chat-pending-dots" />
+                    )
                   )
                 ) : (
-                  <p>{msg.content}</p>
+                  <p className="chat-user-text">{msg.content}</p>
                 )}
               </div>
               {msg.role === "assistant" && msg.sources.length > 0 && (
@@ -325,7 +366,7 @@ export function Chat() {
           disabled={activeStreaming || !input.trim()}
           title="Отправить (Enter)"
         >
-          ➤
+          <IconSend size={16} />
         </button>
       </div>
     </div>

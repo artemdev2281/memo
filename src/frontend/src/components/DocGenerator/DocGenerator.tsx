@@ -4,6 +4,15 @@ import remarkGfm from "remark-gfm";
 import { saveDocument, streamGenerate } from "../../api/generate";
 import { getTree } from "../../api/fs";
 import { useAppStore } from "../../store/useAppStore";
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconFolder,
+  IconPaperclip,
+  IconSave,
+  IconSparkles,
+  Spinner,
+} from "../Icon/Icon";
 import "./DocGenerator.css";
 
 type Format = ".txt" | ".md";
@@ -100,13 +109,6 @@ export function DocGenerator() {
     }
   }
 
-  const contextLabel =
-    selectedPaths.size > 0
-      ? `📎 ${selectedPaths.size} файл(ов)`
-      : workDir
-      ? `📁 ${workDir.split(/[\\/]/).pop() || workDir}`
-      : "Без контекста";
-
   return (
     <div className="docgen-panel">
       <div className="docgen-toolbar">
@@ -125,7 +127,19 @@ export function DocGenerator() {
           </button>
         </div>
         <span className="docgen-context-badge" title={contextPaths.join(", ")}>
-          {contextLabel}
+          {selectedPaths.size > 0 ? (
+            <>
+              <IconPaperclip size={11} />
+              {selectedPaths.size} файл(ов)
+            </>
+          ) : workDir ? (
+            <>
+              <IconFolder size={11} />
+              {workDir.split(/[\\/]/).pop() || workDir}
+            </>
+          ) : (
+            "Без контекста"
+          )}
         </span>
       </div>
 
@@ -149,11 +163,17 @@ export function DocGenerator() {
           onClick={handleGenerate}
           disabled={isGenerating || !request.trim()}
         >
-          {isGenerating ? "⏳" : "✨ Создать"}
+          {isGenerating ? <Spinner size={14} /> : <IconSparkles size={14} />}
+          {isGenerating ? "Создаю…" : "Создать"}
         </button>
       </div>
 
-      {error && <div className="docgen-error">{error}</div>}
+      {error && (
+        <div className="alert alert-error docgen-alert">
+          <IconAlertTriangle size={14} />
+          {error}
+        </div>
+      )}
 
       {generatedContent && (
         <div className="docgen-preview">
@@ -179,7 +199,7 @@ export function DocGenerator() {
       {showSaveRow && generatedContent && (
         <div className="docgen-save-row">
           <input
-            className="docgen-save-input"
+            className="input docgen-save-input"
             type="text"
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
@@ -189,18 +209,22 @@ export function DocGenerator() {
             placeholder="Имя файла"
           />
           <button
-            className="docgen-save-btn"
+            className="btn btn-primary"
             onClick={handleSave}
             disabled={isSaving || !saveName.trim()}
           >
-            {isSaving ? "⏳" : "💾 Сохранить"}
+            {isSaving ? <Spinner size={13} /> : <IconSave size={13} />}
+            Сохранить
           </button>
         </div>
       )}
 
       {saveSuccess && (
-        <div className="docgen-success">
-          ✅ Файл сохранён: <strong>{saveSuccess}</strong>
+        <div className="alert alert-success docgen-alert">
+          <IconCheck size={14} />
+          <span>
+            Файл сохранён: <strong>{saveSuccess}</strong>
+          </span>
         </div>
       )}
     </div>

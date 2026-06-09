@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./Layout.css";
 
 interface LayoutProps {
@@ -11,35 +11,36 @@ export function Layout({ left, right }: LayoutProps) {
   const [dragging, setDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const onDividerMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      setDragging(true);
-    },
-    [],
-  );
+  const onDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  }, []);
 
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!dragging || !containerRef.current) return;
+  // Window-level listeners so the drag survives the cursor leaving the
+  // container (fast mouse moves, leaving the window and coming back).
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const next = Math.max(200, Math.min(e.clientX - rect.left, rect.width - 300));
+      const next = Math.max(220, Math.min(e.clientX - rect.left, rect.width - 360));
       setLeftWidth(next);
-    },
-    [dragging],
-  );
-
-  const stopDrag = useCallback(() => setDragging(false), []);
+    };
+    const onUp = () => setDragging(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [dragging]);
 
   return (
-    <div
-      className="layout"
-      ref={containerRef}
-      onMouseMove={onMouseMove}
-      onMouseUp={stopDrag}
-      onMouseLeave={stopDrag}
-      style={{ cursor: dragging ? "col-resize" : undefined }}
-    >
+    <div className="layout" ref={containerRef}>
       <div className="layout-left" style={{ width: leftWidth }}>
         {left}
       </div>
