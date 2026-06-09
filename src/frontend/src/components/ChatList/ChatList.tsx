@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createChat, deleteChat, listChats, updateChat } from "../../api/chat";
 import { useAppStore } from "../../store/useAppStore";
+import { IconPencil, IconPlus, IconTrash } from "../Icon/Icon";
 import "./ChatList.css";
 
 export function ChatList() {
@@ -20,6 +21,7 @@ export function ChatList() {
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [listError, setListError] = useState<string | null>(null);
 
   useEffect(() => {
     listChats().then(setChats).catch(() => {});
@@ -32,19 +34,29 @@ export function ChatList() {
     const contextType = contextPaths.length > 0
       ? (selectedPaths.size > 0 ? "files" : "folder")
       : "none";
-    const chat = await createChat({
-      model: selectedModel || "",
-      context_type: contextType,
-      context_paths: contextPaths,
-    });
-    addChat(chat);
-    setActiveChatId(chat.id);
-    setMessages([]);
+    setListError(null);
+    try {
+      const chat = await createChat({
+        model: selectedModel || "",
+        context_type: contextType,
+        context_paths: contextPaths,
+      });
+      addChat(chat);
+      setActiveChatId(chat.id);
+      setMessages([]);
+    } catch (e) {
+      setListError(`Не удалось создать чат: ${(e as Error).message}`);
+    }
   }
 
   async function handleDelete(e: React.MouseEvent, id: number) {
     e.stopPropagation();
-    await deleteChat(id);
+    try {
+      await deleteChat(id);
+    } catch (err) {
+      setListError(`Не удалось удалить чат: ${(err as Error).message}`);
+      return;
+    }
     removeChatFromList(id);
     if (activeChatId === id) {
       setActiveChatId(null);
@@ -60,8 +72,12 @@ export function ChatList() {
 
   async function commitEdit(id: number) {
     if (editTitle.trim()) {
-      const updated = await updateChat(id, { title: editTitle.trim() });
-      updateChatInList(updated);
+      try {
+        const updated = await updateChat(id, { title: editTitle.trim() });
+        updateChatInList(updated);
+      } catch {
+        // keep the old title on failure
+      }
     }
     setEditingId(null);
   }
@@ -71,9 +87,10 @@ export function ChatList() {
       <div className="chat-list-header">
         <span className="chat-list-title">Чаты</span>
         <button className="chat-list-new-btn" onClick={handleNewChat} title="Новый чат">
-          +
+          <IconPlus size={14} />
         </button>
       </div>
+      {listError && <div className="chat-list-error">{listError}</div>}
       <div className="chat-list-items">
         {chats.map((chat) => (
           <div
@@ -86,7 +103,7 @@ export function ChatList() {
             }}
           >
             {editingId === chat.id ? (
-              <div className="chat-list-item-edit" style={{ flex: 1 }}>
+              <div className="chat-list-item-edit">
                 <input
                   autoFocus
                   value={editTitle}
@@ -110,14 +127,14 @@ export function ChatList() {
                     title="Переименовать"
                     onClick={(e) => startEdit(e, chat.id, chat.title)}
                   >
-                    ✏
+                    <IconPencil size={12} />
                   </button>
                   <button
-                    className="chat-action-btn"
+                    className="chat-action-btn chat-action-danger"
                     title="Удалить"
                     onClick={(e) => handleDelete(e, chat.id)}
                   >
-                    ✕
+                    <IconTrash size={12} />
                   </button>
                 </div>
               </>
@@ -125,9 +142,7 @@ export function ChatList() {
           </div>
         ))}
         {chats.length === 0 && (
-          <p style={{ color: "#666", fontSize: 12, padding: "8px 12px" }}>
-            Нажмите + для нового чата
-          </p>
+          <p className="chat-list-empty">Нажмите + для нового чата</p>
         )}
       </div>
     </div>

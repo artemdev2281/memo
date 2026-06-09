@@ -21,6 +21,8 @@ src/backend/data/chroma/
 
 # SQLite (локальные данные — не коммитим)
 src/backend/data/*.db
+src/backend/data/*.db-shm
+src/backend/data/*.db-wal
 src/backend/data/*.sqlite
 
 # Node / Frontend

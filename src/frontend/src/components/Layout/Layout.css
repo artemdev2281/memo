@@ -1,36 +1,39 @@
 .layout {
   display: flex;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
-  background: #1e1e1e;
+  background: var(--bg-app);
 }
 
 .layout-left {
   flex-shrink: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  background: #252526;
-  min-width: 200px;
-  max-width: 600px;
+  overflow: hidden;
+  background: var(--bg-sidebar);
+  min-width: 220px;
+  max-width: 640px;
 }
 
 .layout-divider {
-  width: 3px;
+  width: 4px;
+  margin: 0 -1px;
   flex-shrink: 0;
-  background: #3c3c3c;
+  background: transparent;
+  border-left: 1px solid var(--border);
   cursor: col-resize;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
   position: relative;
+  z-index: 1;
 }
 
 .layout-divider:hover,
 .layout-divider.dragging {
-  background: #0078d4;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .layout-right {
   flex: 1;
-  overflow: auto;
-  background: #1e1e1e;
-  min-width: 300px;
+  overflow: hidden;
+  background: var(--bg-app);
+  min-width: 360px;
 }

@@ -1,6 +1,16 @@
 import { useRef, useState } from "react";
 import type { OrganizeFile, OrganizePreview as Preview } from "../../api/organize";
 import { applyOrganization } from "../../api/organize";
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconFileText,
+  IconFolder,
+  IconPencil,
+  IconPlus,
+  IconX,
+  Spinner,
+} from "../Icon/Icon";
 import "./OrganizePreview.css";
 
 interface EditableCluster {
@@ -150,7 +160,8 @@ export function OrganizePreview({ preview, folder, onDone, onCancel }: Props) {
         <span className="op-title">Предложенная организация</span>
         {preview.single_cluster && (
           <span className="op-warning">
-            ⚠ Все документы одной темы — организация может не потребоваться
+            <IconAlertTriangle size={12} />
+            Все документы одной темы — организация может не потребоваться
           </span>
         )}
       </div>
@@ -168,7 +179,9 @@ export function OrganizePreview({ preview, folder, onDone, onCancel }: Props) {
             onDragLeave={() => setDragOverId(null)}
           >
             <div className="op-cluster-header">
-              📁{" "}
+              <span className="op-cluster-icon">
+                <IconFolder size={14} />
+              </span>
               {editingId === cluster.id ? (
                 <input
                   ref={editInputRef}
@@ -197,17 +210,17 @@ export function OrganizePreview({ preview, folder, onDone, onCancel }: Props) {
                   title="Переименовать"
                   onClick={() => startEdit(cluster.id, cluster.name)}
                 >
-                  ✏
+                  <IconPencil size={12} />
                 </button>
                 <button
                   className="op-action-btn op-action-remove"
                   title="Удалить папку (файлы → Разное)"
                   onClick={() => removeCluster(cluster.id)}
                 >
-                  ✕
+                  <IconX size={12} />
                 </button>
               </div>
-              <span className="op-file-count">{cluster.files.length} файл(ов)</span>
+              <span className="op-file-count">{cluster.files.length}</span>
             </div>
             <div className="op-files">
               {cluster.files.length === 0 && (
@@ -224,7 +237,8 @@ export function OrganizePreview({ preview, folder, onDone, onCancel }: Props) {
                   }}
                   title={file.path}
                 >
-                  📄 {file.name}
+                  <IconFileText size={12} />
+                  {file.name}
                 </div>
               ))}
             </div>
@@ -233,21 +247,23 @@ export function OrganizePreview({ preview, folder, onDone, onCancel }: Props) {
       </div>
 
       <div className="op-footer">
-        <button className="op-btn op-btn-add" onClick={addCluster}>
-          + Новая папка
+        <button className="btn" onClick={addCluster}>
+          <IconPlus size={13} />
+          Папка
         </button>
         <div style={{ flex: 1 }} />
         {applyError && <span className="op-apply-error">{applyError}</span>}
         <span className="op-summary">{totalFiles} файл(ов)</span>
-        <button className="op-btn op-btn-cancel" onClick={onCancel} disabled={isApplying}>
+        <button className="btn" onClick={onCancel} disabled={isApplying}>
           Отмена
         </button>
         <button
-          className="op-btn op-btn-apply"
+          className="btn btn-primary"
           onClick={handleApply}
           disabled={isApplying || totalFiles === 0}
         >
-          {isApplying ? "⏳ Применяю…" : "✅ Применить"}
+          {isApplying ? <Spinner size={13} /> : <IconCheck size={13} />}
+          {isApplying ? "Применяю…" : "Применить"}
         </button>
       </div>
     </div>

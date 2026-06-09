@@ -5,6 +5,20 @@ import { refreshStale, streamIndex } from "../../api/index";
 import { analyzeOrganization, OrganizePreview as Preview } from "../../api/organize";
 import { useAppStore } from "../../store/useAppStore";
 import { FileTree } from "../FileTree/FileTree";
+import {
+  IconAlertTriangle,
+  IconArrowRight,
+  IconCheck,
+  IconCheckSquare,
+  IconChevronDown,
+  IconChevronRight,
+  IconFolderOpen,
+  IconFolders,
+  IconRefresh,
+  IconSearch,
+  IconZap,
+  Spinner,
+} from "../Icon/Icon";
 import { OrganizePreview } from "../OrganizePreview/OrganizePreview";
 import "./LeftPanel.css";
 
@@ -52,6 +66,7 @@ export function LeftPanel() {
   }
 
   async function loadTree(dir: string) {
+    if (!dir) return;
     setLoadError(null);
     try {
       const result = await getTree(dir);
@@ -155,7 +170,7 @@ export function LeftPanel() {
     <div className="left-panel">
       <div className="lp-path-row">
         <input
-          className="lp-path-input"
+          className="input lp-path-input"
           type="text"
           placeholder="Путь к папке…"
           value={pathInput}
@@ -164,53 +179,62 @@ export function LeftPanel() {
             if (e.key === "Enter") loadTree(pathInput.trim());
           }}
         />
-        <button className="lp-btn lp-btn-browse" onClick={handleBrowse} title="Выбрать папку">
-          📂
+        <button className="btn lp-icon-btn" onClick={handleBrowse} title="Выбрать папку">
+          <IconFolderOpen size={15} />
         </button>
         <button
-          className="lp-btn lp-btn-open"
+          className="btn lp-icon-btn"
           onClick={() => loadTree(pathInput.trim())}
           title="Открыть папку"
         >
-          ↗
+          <IconArrowRight size={15} />
         </button>
       </div>
 
-      {loadError && <div className="lp-error">{loadError}</div>}
+      {loadError && (
+        <div className="alert alert-error">
+          <IconAlertTriangle size={14} />
+          {loadError}
+        </div>
+      )}
 
       {!organizeMode && (
         <div className="lp-toolbar">
           <button
-            className={`lp-btn lp-btn-select${selectionMode ? " active" : ""}`}
+            className={`btn lp-tool-btn${selectionMode ? " active" : ""}`}
             disabled={isIndexing}
             onClick={toggleSelectionMode}
             title={selectionMode ? "Выйти из режима выбора" : "Выбрать файлы"}
           >
-            ☑ Выбрать{selectionMode && selectedPaths.size > 0 ? ` (${selectedPaths.size})` : ""}
+            <IconCheckSquare size={13} />
+            Выбрать{selectionMode && selectedPaths.size > 0 ? ` (${selectedPaths.size})` : ""}
           </button>
           <button
-            className="lp-btn lp-btn-index"
+            className="btn btn-primary lp-tool-btn"
             disabled={!selectionMode || selectedPaths.size === 0 || isIndexing}
             onClick={handleIndex}
             title="Проиндексировать выбранные файлы"
           >
-            {isIndexing ? "⏳ Индексация…" : "⚡ Индексировать"}
+            {isIndexing ? <Spinner size={13} /> : <IconZap size={13} />}
+            {isIndexing ? "Индексация…" : "Индексировать"}
           </button>
           <button
-            className="lp-btn lp-btn-refresh"
+            className="btn lp-tool-btn"
             disabled={isRefreshing || isIndexing}
             onClick={handleRefreshStale}
             title="Обновить устаревшие файлы"
           >
-            {isRefreshing ? "⏳" : "↻"} Устаревшие
+            {isRefreshing ? <Spinner size={13} /> : <IconRefresh size={13} />}
+            Устаревшие
           </button>
           <button
-            className="lp-btn lp-btn-organize"
+            className="btn lp-tool-btn"
             disabled={!workDir || isIndexing}
             onClick={handleOrganizeStart}
             title="Авто-организация файлов"
           >
-            🗂 Организовать
+            <IconFolders size={13} />
+            Организовать
           </button>
         </div>
       )}
@@ -230,8 +254,11 @@ export function LeftPanel() {
             className="lp-index-errors-header"
             onClick={() => setErrorsExpanded((v) => !v)}
           >
-            ⚠️ {Object.keys(indexErrors).length} файл(ов) не проиндексировано
-            <span className="lp-index-errors-chevron">{errorsExpanded ? "▾" : "▸"}</span>
+            <IconAlertTriangle size={13} />
+            {Object.keys(indexErrors).length} файл(ов) не проиндексировано
+            <span className="lp-index-errors-chevron">
+              {errorsExpanded ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
+            </span>
           </button>
           {errorsExpanded && (
             <ul className="lp-index-errors-list">
@@ -247,8 +274,9 @@ export function LeftPanel() {
       )}
 
       {organizeResult && !organizeMode && (
-        <div className="lp-organize-result">
-          ✅ Создано папок: {organizeResult.folders_created}, перемещено файлов: {organizeResult.files_moved}
+        <div className="alert alert-success">
+          <IconCheck size={14} />
+          Создано папок: {organizeResult.folders_created}, перемещено файлов: {organizeResult.files_moved}
         </div>
       )}
 
@@ -267,21 +295,27 @@ export function LeftPanel() {
                 </label>
                 <div className="lp-organize-btn-row">
                   <button
-                    className="lp-btn lp-btn-analyze"
+                    className="btn btn-primary"
                     onClick={handleAnalyze}
                     disabled={isAnalyzing || !workDir}
                   >
+                    {isAnalyzing ? <Spinner size={13} /> : <IconSearch size={13} />}
                     {isAnalyzing
-                    ? "⏳ Анализирую…"
-                    : selectedPaths.size > 0
-                      ? `🔍 Анализировать (${selectedPaths.size} файл.)`
-                      : "🔍 Анализировать"}
+                      ? "Анализирую…"
+                      : selectedPaths.size > 0
+                        ? `Анализировать (${selectedPaths.size} файл.)`
+                        : "Анализировать"}
                   </button>
-                  <button className="lp-btn" onClick={handleOrganizeCancel}>
+                  <button className="btn" onClick={handleOrganizeCancel}>
                     Отмена
                   </button>
                 </div>
-                {organizeError && <div className="lp-error">{organizeError}</div>}
+                {organizeError && (
+                  <div className="alert alert-error">
+                    <IconAlertTriangle size={14} />
+                    {organizeError}
+                  </div>
+                )}
                 {isAnalyzing && (
                   <p className="lp-analyzing-hint">Анализирую файлы, это может занять несколько минут…</p>
                 )}
@@ -301,7 +335,8 @@ export function LeftPanel() {
           </div>
         ) : !tree ? (
           <div className="lp-placeholder">
-            <p>Введите путь к папке и нажмите Enter или ↗</p>
+            <IconFolderOpen size={36} />
+            <p>Откройте папку с документами,<br />чтобы начать работу</p>
           </div>
         ) : (
           <FileTree root={tree} selectionMode={selectionMode} />
